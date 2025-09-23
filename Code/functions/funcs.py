@@ -60,6 +60,7 @@ def AllTrajectories(ds,amount,OutputPath, id = bool):
         data  = ds[i:i+amount]
         data = data.reset_index()
         fig, ax = Plotting(data,amount=amount)
+        Palmyra_plot(ax)
         fig.savefig(OutputPath+f"_{n}.png")
 
     if rem > 0: 
@@ -124,9 +125,20 @@ def Palmyra_obj():
     return shp.points(-162.078333, 5.883611,)
 
 def Palmyra_plot(ax):
+    """"Plots Palmyra onto the graph Returns as """
     Palmyra = Palmyra_obj()
-    ax.scatter(Palmyra.x,Palmyra.y, marker  = "*", color = "r", label = "Palmyra")
+    ax.scatter(Palmyra.x,Palmyra.y, marker  = "o", color = "darkgreen", label = "Palmyra", s= 10)
     return ax 
+
+def Kingman_obj():
+    """Returns cords of Palymra as a point"""
+    import shapely as shp
+    return shp.points(-162.41667, 6.3833,)
+
+def Kingmon_plt(ax):
+    kingman = Kingman_obj()
+    ax.scatter(kingman.x,kingman.y, marker  = "o", color = "darkgreen", label = "Kingman Reef", s =10)
+    return ax
 
 def distance_from_Palymra(ds):
 
@@ -629,6 +641,100 @@ def bootstrapping_each_box(lat, lon, variable, bins = 10):
     errorbars = errors - Values
    
     return Values, errorbars, xedges, yedges, errors
+
+def Add_bathymetry(fig,ax):
+    from matplotlib import cm
+    bath = xr.open_dataset(r"Code\Data\bath.nc")
+    bath_cmap = cm.get_cmap("Blues_r").copy()
+    bath_cmap.set_over('green')
+    negative_levels = np.linspace(-10000, 0, 11)
+    cbr = ax.contourf( bath["lon"], bath["lat"], bath["elevation"], 
+                    linestyle = "-", cmap = bath_cmap, alpha = 0.8, levels = negative_levels, extend = "max")
+    fig.colorbar(cbr)
+    cbr.set_label("m/s")
+    return fig, ax
+
+def NWR_exteriors(data):
+    """Returns Exteriors and Interiors from NWP dataset."""
+    from shapely.ops import unary_union
+    geo = data["geometry"][0]
+    geomentry = []
+
+    for polygon in geo.geoms:
+        exterior = polygon.exterior
+        geomentry.append(sp.Polygon(exterior))
+        interior_holes = []
+        for interior in polygon.interiors:
+            interior_holes.append(sp.Polygon(interior))
+        combined_holes = unary_union(interior_holes)
+        geomentry.append(combined_holes)
+        #multipolygon = sp.MultiPolygon(exteriors)
+    labels = ["Palmyra NWR", np.nan,"Kingman NWR", np.nan]
+    gpddata = gpd.GeoDataFrame({"labels":labels, "geometry": geomentry})
+    return gpddata
+
+def plot_NWPs(ax,data):
+    """Plots Palymra and Kingmon Reef, Pass in Shape file as data
+    Returns Ax"""
+    NWR_ext = NWR_exteriors(data)
+    NWR_ext.plot(ax= ax, edgecolor= "darkgreen",alpha = 0.35, column= "labels", legend= True, categorical=True)
+    return ax 
+
+def Column_to_List(data, column:str):
+    """Returns a column as a long list of values"""
+    long_list = []
+    for i in range(len(data)):
+        row = data.at[i, column]
+        long_list.extend(row)
+    return long_list
+
+def Remove_speeds_high_low(data:gpd.GeoDataFrame):
+    """Removes the high speed and low speed points
+    Add column of masked array, and number of points removed"""
+    bad_points = []
+    speeds = []
+    Masks = [ ]
+    for i in range(len(data)):
+        speed = data.at[i, "xy_speed"]
+        speed_high = speed>2
+        speed_low = speed < 0.001
+        masked = speed_high | speed_low
+        masked =~ masked
+        filtered_speed = speed[masked]
+        bad_point = len(speed) - len(filtered_speed)
+        
+        speeds.append(filtered_speed)
+        bad_points.append(bad_point)
+        Masks.append(masked)
+    
+    dataclean = data.copy()
+    dataclean["xy_speed"] = speeds
+    dataclean["points_removed"] = bad_points
+    dataclean["Masked_array"] = Masks
+    return dataclean 
+
+def Filter_geometry_obj(row):
+    """Removes the same gps points from the bad speed points"""
+    coords = np.asarray(row.geometry.coords)
+    coords = coords[1:]
+    filtered_coords = coords[row['Masked_array']]
+    if len(filtered_coords) > 1:
+        return sp.geometry.LineString(filtered_coords)
+    else:
+    # Return an empty geometry if not enough points remain
+        return None
+
+def Filter_Rows(row,column):
+    """Function implented to apply mask from bad point removal to to other columns
+    if column size doesnt line up we remove the later point [1:]"""
+    array =np.asarray(row[f"{column}"])
+    if len(array) != len(row["Masked_array"]):
+        array = array[1:]
+    filtered_data = array[row["Masked_array"]]
+    if len(filtered_data)>1:
+        return filtered_data
+    else:
+        return None
 
 class plotting:
     def __init__():
