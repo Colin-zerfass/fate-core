@@ -427,11 +427,12 @@ def Add_interp_currents(data,vo,uo):
 
     for i in range(len(data)):
         print(i)
-        pointlegnth = len(data.at[i,"timelist"])
+        pointlegnth = len(data.at[i,"TimeStamp"])
         mapped_u = []
         mapped_v = []
         for n in range(pointlegnth):
-            time  = data.at[i,"timelist"][n]
+            time  = data.at[i,"TimeStamp"][n]
+            time = pd.to_datetime(time)
             point = sp.get_point(data.at[i,"geometry"],n)
             lat = point.y
             lon = point.x
@@ -735,6 +736,206 @@ def Filter_Rows(row,column):
         return filtered_data
     else:
         return None
+
+def remove_outof_domain(data:gpd.GeoDataFrame):
+    boundry = sp.Polygon([(-163.75,4.5), (-163.75,7.8), (-160 +2/3, 7.8),(-160 +2/3, 4.5)])
+    Values = []
+    for n in range(len(data)):
+        line = data["geometry"][n]
+        lines , mask = split_trajectory_in_domain(line, domain = boundry)
+        if len(lines) <1:
+            Values.append(n)
+    print(Values)
+    data = data.drop(Values, axis = 0)
+    data = data.reset_index()
+    return data
+
+def split_trajectory_in_domain(line: sp.LineString, domain: sp.Polygon):
+    """
+    Splits a LineString trajectory into sub-trajectories (LineStrings)
+    that lie strictly within a polygon domain.
+
+    Rules:
+    - Only keeps original vertices (no new boundary points added).
+    - Only keeps sub-trajectories with >= 2 inside vertices.
+    - Mask marks original vertices that belong to a valid inside sub-trajectory.
+
+    Parameters
+    ----------
+    line : shapely.LineString
+        Input trajectory.
+    domain : shapely.Polygon
+        Polygon domain.
+
+    Returns
+    -------
+    sub_trajectories : list of shapely.LineString
+        List of sub-trajectories inside the domain.
+    mask : np.ndarray (bool)
+        Boolean mask for each vertex of the original line.
+    """
+    coords = np.array(line.coords)
+    inside = np.array([domain.contains(sp.Point(p)) for p in coords])
+
+    sub_trajectories = []
+    mask = np.zeros_like(inside, dtype=bool)
+
+    current_segment = []
+    current_indices = []
+
+    for i, (pt, flag) in enumerate(zip(coords, inside)):
+        if flag:
+            current_segment.append(pt)
+            current_indices.append(i)
+        else:
+            # if segment ended, check length
+            if len(current_segment) >= 2:
+                sub_trajectories.append(sp.LineString(current_segment))
+                mask[current_indices] = True
+            # reset
+            current_segment = []
+            current_indices = []
+
+    # final check at end
+    if len(current_segment) >= 2:
+        sub_trajectories.append(sp.LineString(current_segment))
+        mask[current_indices] = True
+
+    return sub_trajectories, mask
+
+def remove_no_TimeStamp(data: gpd.GeoDataFrame):
+    """Removes Rows that do not have TimeStamp Data"""
+    data, xdistance, ydistance = add_distance_collumns(data)
+    data = data.dropna(subset=["TimeStamp"])
+    data = data.reset_index(drop = True)
+    return data
+
+def add_delta_time_collums(data:gpd.GeoDataFrame):
+    """Adds a collum that has a list of the change in times, Removes Time stamps that are Nan"""
+    Times = []
+    for i in range(len(data)):
+        timelist = data.at[i, "TimeStamp"]
+        timelist = pd.to_datetime(timelist, format = r"%Y-%m-%d %H:%M:%S")
+        deltatime = np.diff(timelist)/10**9 ## converts from nano seconds
+        Times.append(deltatime)
+    data["Delta_Timestamps"] = Times
+    return data
+
+def Add_x_y_speed_collums_TimeStamp(data): 
+    """Converts distances in x, y, and xy to speeds in x,y,xy in m/s, using the sampleing frequency"""
+    convert = 1000 ## km/hr to m/s 
+
+    xspeeds = []
+    yspeeds = []
+    xyspeeds = []
+    for i in data.index:
+        xdistance = np.array(data.at[ i, "x_km"])
+        xspeed = xdistance/data.at[i,"Delta_Timestamps"].astype("float64")*convert
+        xspeeds.append(xspeed)
+
+        ydistance = np.array(data.at[i, "y_km"])
+        yspeed = ydistance/data.at[i,"Delta_Timestamps"].astype("float64")*convert
+        yspeeds.append(yspeed)
+
+        xydistance = np.array(data.at[i,"xy_km"])
+        xyspeed = xydistance/data.at[i,"Delta_Timestamps"].astype("float64")*convert
+        xyspeeds.append(xyspeed)
+
+    data["x_speed"] = xspeeds
+    data["y_speed"] = yspeeds
+    data["xy_speed"] = xyspeeds
+    return data
+
+def CSV_to_parquet(filelocation): #### REcheck this with Combinsatlinkandmi.ipynb
+    """Takes a CSV with at least the column (BuoyName, Latitude, Longitude, Timestamp, MinOfTimes, MaxOfTimes)
+    \nReturns: A Geopandas dataframe with trajectories as a linestring, Keeps these same columns and Timestamp is a list of times at each poin
+    \nFiltering
+    Only sort of filtering this does is remove any trajectory that is just one point"""
+
+    data= pd.read_csv(filelocation, low_memory=False)
+    Latitude_list = data.groupby("BuoyName")["Latitude"].apply(list)
+    Longitude_list = data.groupby("BuoyName")["Longitude"].apply(list)
+    times_list = data.groupby("BuoyName")["Timestamp"].apply(list)
+    date_enter = data.groupby("BuoyName")["MinOfTimes"].apply(np.minimum.reduce)
+    date_exit = data.groupby("BuoyName")["MaxOfTimes"].apply(np.minimum.reduce)
+    BuoyNames = data["BuoyName"].unique()
+
+    print(len(Latitude_list))
+    mask = Latitude_list.apply(len) != 1
+    Latitude_list = Latitude_list[mask]
+    Longitude_list = Longitude_list[mask]
+    times_list = times_list[mask]
+    date_enter = date_enter[mask]
+    date_exit = date_exit[mask]
+
+    BuoyNames_filtered = Latitude_list.index.to_numpy()
+    print(len(Latitude_list))
+
+    Latitude_list
+    lines = []
+    for n in range(len(Latitude_list)):
+        line = sp.linestrings(Longitude_list.iloc[n],Latitude_list.iloc[n])
+        lines.append(line)
+
+
+    print(len(BuoyNames), len(lines), len(date_enter), len(date_exit))
+    newdata = gpd.GeoDataFrame({"BuoyName":BuoyNames_filtered, "MinOfDate":date_enter, "MaxOfDate": date_exit,
+                                 "TimeStamp": times_list, "geometry": lines}, index= None)
+    newdata = newdata.reset_index(drop = True)
+    return newdata ## This isnt right
+
+def Satlink_live_to_csv(filelocation: str)->pd.DataFrame:
+    """Convets the file download from Santlinks dFAD web portal into the standard csv file
+    \n Returns: a Pandas dataframe """
+    def dms_to_decimal(coord_str: str) -> float:
+        """
+        Convert coordinate from 'DDºMM.mmmX' format to decimal degrees.
+        
+        Example: '14º29.352'S' -> -14.4892
+        """
+        # regex to capture degrees, minutes, and hemisphere
+        match = re.match(r"(\d+)º([\d\.]+)'?([NSEW])", coord_str.strip())
+        if not match:
+            raise ValueError(f"Invalid coordinate format: {coord_str}")
+        
+        deg = float(match.group(1))
+        minutes = float(match.group(2))
+        hemi = match.group(3).upper()
+        
+        decimal = deg + minutes / 60.0
+        
+        if hemi in ["S", "W"]:
+            decimal = -decimal
+        
+        return decimal
+    
+    def extract_prefix(filename: str) -> str:
+        """
+        Extract prefix before '_positions' from a filename.
+        
+        Example:
+        'SLX_404307_positions_20250924_155130.csv' -> 'SLX_404307'
+        """
+        match = re.match(r"(.+?)_positions", filename)
+        if match:
+            return match.group(1)
+        else:
+            raise ValueError(f"Filename not in expected format: {filename}")
+
+    data['Latitude'] = data['Latitude'].apply(dms_to_decimal)
+    data['Longitude'] = data['Longitude'].apply(dms_to_decimal)
+    data["StoredTime"] = pd.to_datetime(data["StoredTime"])
+    data["BuoyName"] = data["source_file"].apply(extract_prefix)
+    data = pd.read_parquet(filelocation)
+    data['Timestamp'] = data['StoredTime'].dt.tz_localize(None)
+    data = data.sort_values("Timestamp")
+    data["MinOfTimes"] = data.groupby(["BuoyName"])['Timestamp'].transform("min")
+    data["MaxOfTimes"] = data.groupby(["BuoyName"])['Timestamp'].transform("max")
+    data = data.sort_values(by = ['MinOfTimes', "Timestamp"])
+    data = data.drop_duplicates()
+    cols_to_keep=['BuoyName', 'Timestamp', 'Latitude', 'Longitude']
+    data = data[cols_to_keep]
+    return data 
 
 class plotting:
     def __init__():

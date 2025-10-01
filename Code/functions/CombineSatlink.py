@@ -32,14 +32,16 @@ for csv in csvfiles[1:]:
 
 
 ## adding non common formating the the dataset. 
-csv = r"C:\FATE\Code\Data\Palmyra_Data_CSV\Other Data\2021-202312 Palmyra Export.csv"
+csv = r"C:\FATE\Code\Data\Palmyra_Data_CSV\Satlink\Other Data\2021-202312 Palmyra Export.csv"
 data2 = pd.read_csv(csv, sep= ",", index_col=None,low_memory=False)
 data = pd.concat([data,data2], ignore_index=True)
 
-csv = r"C:\FATE\Code\Data\Palmyra_Data_CSV\Other Data\210925 DR+ES Dump.csv"
+csv = r"C:\FATE\Code\Data\Palmyra_Data_CSV\Satlink\Other Data\210925 DR+ES Dump.csv"
 data2 = pd.read_csv(csv, sep= ";", index_col=None,low_memory=False)
+data2 = data2.rename(columns={"Name":"BuoyName"})
 data2["Timestamp"] = pd.to_datetime(data2["StoredTime"], format = r'%Y/%m/%d %H:%M:%S')
 data2["Timestamp"] = data2["Timestamp"].dt.strftime(r'%Y-%m-%d %H:%M')
+print(data2.columns)
 data = pd.concat([data,data2], ignore_index=True)
 
 data["Timestamp"] = pd.to_datetime(data["Timestamp"], format = r'%Y-%m-%d %H:%M')

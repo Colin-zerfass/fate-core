@@ -6,7 +6,7 @@ from Code.functions.funcs import *
 import xarray as xr 
 from scipy.interpolate import interpn 
 
-data = gpd.read_file(r"Code\Data\Palmyra Data\MI_and_SAT_FAD_positions")
+data = gpd.read_parquet(r"Code\Data\Palmyra Data\SAT_MI_FAD_cleanedspeeds.parquet")
 
 dataNWR = gpd.read_file(r"Code\Data\Palmyra_Shapefiles",  layer = 'PAL_KING_NWR_12nm')
 
@@ -43,7 +43,7 @@ if False: ## Cleans the dFAD file based on speed positions and saves
 
 
 
-if False:## Getting time,location, dirction(X,Y,), distance (x,y,xy) and speed (u,v,uv) for each dFAD
+if False :## Getting time,location, dirction(X,Y,), distance (x,y,xy) and speed (u,v,uv) for each dFAD
 
     ### Adding Distance collumns
     
@@ -58,27 +58,30 @@ if False:## Getting time,location, dirction(X,Y,), distance (x,y,xy) and speed (
 
     data.to_parquet(r"Code\Data\Mapped_4hr_period.parquet")
 
-if False: ## Adds currents velocity data to a data set for dFADs that samples around 4 hr 
-    data = samplefreq(data)
-    data = data.query("SampleFreq >3.9").query("SampleFreq <4.1")
-    print(data.shape)
-    data = data.reset_index()
-    data.to_csv(r"Code\Data\speedsat_4hr.csv")
+if True: ## Adds currents velocity data to a data set for dFADs that samples around 4 hr 
+    #data.to_csv(r"Code\Data\speedsat_4hr.csv")
     if True:
-        data, delx_list, dely_list  = add_distance_collumns(data)
-        data = add_time_collumns(data)
-        data = data.reset_index()
+        data = remove_no_TimeStamp(data)
+        #data = Add_x_y_speed_collums_TimeStamp(data)
+        #data, delx_list, dely_list  = add_distance_collumns(data)
+        data["MinOfDate"] = pd.to_datetime(data["MinOfDate"])
+        data["MaxOfDate"] = pd.to_datetime(data["MaxOfDate"])
+        #data = data.iloc[2920:]
+        data = data.reset_index(drop = True)
 
-        ds = xr.open_dataset(r"Code\Data\cmems(3).nc")
+        ds = xr.open_dataset(r"Code\Data\cmems.nc")
         vo  = ds['vo'] ## this is y velocity
         uo = ds['uo'] ## this is x velocity
+        data[data["MinOfDate"] > ds['time'].to_numpy().min()]
+        data[data["MaxOfDate"] < ds['time'].to_numpy().max()]
+        data = data.reset_index(drop = True)
 
         data = Add_interp_currents(data, vo ,uo)
         #newdata = pd.DataFrame({"BuoyName" :data["BuoyName"], "Mapped_u": data["mapped_u"], "Mapped_v": data["mapped_v"]})
         #newdata.to_pickle(r"Code\Data\Mapped_speeds.pkl")
         #newdata.to_parquet(r"Code\Data\Mapped_speeds.parquet")
         #data.to_file(r"Data\Mapped_data\Mapped_4hr_period.shp")
-        data.to_parquet(r"Code\Data\Mapped_4hr_period2.parquet")
+        data.to_parquet(r"Code\Data\Mapped_SAT_MI_Cleanedspeeds.parquet")
 
 if False: ##Makes plot of nonunique dFADs
     non_unique = nonUnique_tracks(data)
