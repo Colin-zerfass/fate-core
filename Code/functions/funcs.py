@@ -257,7 +257,7 @@ def add_time_collumns(data = gpd.GeoDataFrame)-> gpd.GeoDataFrame:
     data["timelist"] = timelists
     return data
     
-def list_of_latlon(data):
+def list_of_latlon(data, droplast = True ):
 
     """Returns a list string of lat and lon points"""
     lines = data["geometry"]
@@ -266,7 +266,8 @@ def list_of_latlon(data):
     for n in range(0,len(lines)):
         dummyline = lines[n]
         cords  = np.array(dummyline.coords)
-        cords = cords[:-1]
+        if droplast == True:
+            cords = cords[:-1]
         points = np.append(points,cords, axis= 0 )
 
     rotatedpoints = np.rot90(points) 
