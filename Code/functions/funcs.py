@@ -805,7 +805,9 @@ def split_trajectory_in_domain(line: sp.LineString, domain: sp.Polygon):
     return sub_trajectories, mask
 
 def remove_no_TimeStamp(data: gpd.GeoDataFrame):
-    """Removes Rows that do not have TimeStamp Data"""
+    """BROKEN:  Unclear what this does
+    Removes Rows that do not have TimeStamp Data
+    """
     data, xdistance, ydistance = add_distance_collumns(data)
     data = data.dropna(subset=["TimeStamp"])
     data = data.reset_index(drop = True)
@@ -937,6 +939,35 @@ def Satlink_live_to_csv(filelocation: str)->pd.DataFrame:
     cols_to_keep=['BuoyName', 'Timestamp', 'Latitude', 'Longitude']
     data = data[cols_to_keep]
     return data 
+
+def dFADS_in_domain(data:gpd.geodataframe)-> pd.DataFrame: 
+    """Calculates the amount of dFADS within the region, and produces a Table with a timeseries of number of points per day
+     ERROR: dFADs that leave and reenter have the only the final date that they leave and theirfor are 
+     considered active when outside of the domain  """
+    mindate = data["MinOfDate"].min()
+    maxdate = data["MaxOfDate"].max()
+    mindate = mindate.floor('D')
+    maxdate = maxdate.floor('D')
+    entrydates = pd.DataFrame({"Dates":data["MinOfDate"].dt.floor('D')})
+    exitdates = pd.DataFrame({"Dates":data["MaxOfDate"].dt.floor('D')})
+    entrydates["Value"] = 1
+    exitdates["Value"] = -1
+
+    DateRange = pd.date_range(start = mindate,end = maxdate)
+    DateRange = pd.DataFrame({"Dates":DateRange})
+    combineddates = pd.concat([entrydates,exitdates]).sort_values("Dates")
+    daily_changes = combineddates.groupby('Dates')['Value'].sum().reset_index()
+    daily_changes = pd.merge(DateRange, daily_changes, on = "Dates", how = "left").fillna(0)
+   # print(daily_changes)
+    daily_changes["active_dFADs"] = daily_changes['Value'].cumsum()
+    #print(daily_changes)
+    return daily_changes
+
+def querry_date(data:gpd.GeoDataFrame, date)-> gpd.GeoDataFrame:
+    """Returns only dFADs that are active during this time period"""
+    data = data.query("MinOfDate <= @date")
+    data = data.query("MaxOfDate >= @date")
+    return data
 
 class plotting:
     def __init__():

@@ -12,7 +12,9 @@ dataNWR = gpd.read_file(r"Code\Data\Palmyra_Shapefiles",  layer = 'PAL_KING_NWR_
 
 if False: ## Cleans the dFAD file based on speed positions and saves 
     ### Method for cleaning data: Read Remove_speeds_high_low for method & check documentation.
+    ##This is done before mapping otherwise needs to mask out Mapped velosities.
     ###Adding columns needed to the data
+    ###This is an old method od cleaning check Cleaning_data.py
     data = samplefreq(data)
     data, delx_long, dely_long= add_distance_collumns(data)
     data = add_time_collumns(data)
@@ -61,7 +63,7 @@ if False :## Getting time,location, dirction(X,Y,), distance (x,y,xy) and speed 
 if True: ## Adds currents velocity data to a data set for dFADs that samples around 4 hr 
     #data.to_csv(r"Code\Data\speedsat_4hr.csv")
     if True:
-        data = remove_no_TimeStamp(data)
+        #data = remove_no_TimeStamp(data) ##this is not needed and do not do, Changes the size of arrays
         #data = Add_x_y_speed_collums_TimeStamp(data)
         #data, delx_list, dely_list  = add_distance_collumns(data)
         data["MinOfDate"] = pd.to_datetime(data["MinOfDate"])
@@ -89,7 +91,7 @@ if False: ##Makes plot of nonunique dFADs
     print(one_group["MinOfDate"])
     AllTrajectories(one_group, 3,r"Figures\sameID")
 
-if True: ##Makes figure for Direction Vectors 
+if False: ##Makes figure for Direction Vectors 
     data, delx_list, dely_list = add_distance_collumns(data)
     lat, lon = list_of_latlon(data)
 

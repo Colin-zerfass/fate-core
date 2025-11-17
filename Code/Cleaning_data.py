@@ -14,12 +14,12 @@ from functions.funcs import *
 import sys 
 
 
-if len(sys.argv) ==1:
-    filename = sys.argv[1]
-else:
-    filename = "Data\Palmyra Data\SAT_MI_FAD_Missing_Times.parquet"
+# if len(sys.argv) ==1:
+#     filename = sys.argv[1]
+# else:
+#     filename = "Data\Palmyra Data\SAT_MI_FAD_Missing_Times.parquet"
 
-print(f"Opening File:{filename}") 
+# print(f"Opening File:{filename}") 
 data = gpd.read_parquet(r"Data\Palmyra Data\SAT_MI_FAD_Missing_Times.parquet")
 
  
@@ -27,6 +27,13 @@ data, delx_long, dely_long= add_distance_collumns(data)
 data = remove_no_TimeStamp(data)
 data = add_delta_time_collums(data)
 data = Add_x_y_speed_collums_TimeStamp(data)
+rowtestingg = 300
+print(f"checking the size of array to see if they are the same row {rowtestingg}")
+print(f"length of x_km: {len(data.x_km[rowtestingg])}")
+x,y = data.geometry[rowtestingg].xy
+print(f"Number of coords: {len(x)}")
+print(f"For Buoy {data.BuoyName[rowtestingg]}")
+
  
 ## Checking how many points that need to be removed 
 speed = np.array(Column_to_List(data,"xy_speed"))
@@ -165,6 +172,13 @@ if __name__ == "__main__":
     speeds  = np.array(Column_to_List(dataclean,"xy_speed"))
     print(f"Number of nan speeds :{np.sum(np.isnan(speeds))}")
 
+    if True: ## Checking size of the arrays
+        print(f"checking the size of array to see if they are the same row {rowtestingg}")
+        print(f"length of x_km: {len(dataclean.x_km[rowtestingg])}")
+        x,y = dataclean.geometry[rowtestingg].xy
+        print(f"Number of coords: {len(x)}")
+        print(f"Number of points removed in row {rowtestingg}: {dataclean.points_removed[rowtestingg] + dataclean.points_removed[rowtestingg]} ")
+        print(f"For Buoy {dataclean.BuoyName[rowtestingg]}")
     
     dataclean.to_parquet(r"Data\Palmyra Data\SAT_MI_FAD_cleanedspeeds.parquet")
 
