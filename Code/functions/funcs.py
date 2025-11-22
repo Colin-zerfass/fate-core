@@ -487,6 +487,8 @@ def Rolling_mean(x = list,windowsize = int):
 def OneTrajectory(ax, ds= gpd.GeoDataFrame,index= int ):
     """For plotting a single Trajectory on specified axis"""
     line = ds.at[index,'geometry']
+    if line == None: 
+        return ax
     x,y = line.xy
     ax.plot(x,y)
     ax.set_xlabel("Longitude")
@@ -682,12 +684,18 @@ def plot_NWPs(ax,data):
     NWR_ext.plot(ax= ax, edgecolor= "darkgreen",alpha = 0.35, column= "labels", legend= True, categorical=True)
     return ax 
 
-def Column_to_List(data, column:str):
+def Column_to_List(data, column:str, idlist = False):
     """Returns a column as a long list of values"""
+    ids = []
     long_list = []
     for i in range(len(data)):
         row = data.at[i, column]
+        id = [data.at[i, "BuoyName"]]
+        id = id*len(data.at[i, "TimeStamp"])
         long_list.extend(row)
+        ids.extend(id)
+    if idlist == True: 
+        return long_list, ids 
     return long_list
 
 def Remove_speeds_high_low(data:gpd.GeoDataFrame):
@@ -956,7 +964,7 @@ def dFADS_in_domain(data:gpd.geodataframe)-> pd.DataFrame:
     DateRange = pd.date_range(start = mindate,end = maxdate)
     DateRange = pd.DataFrame({"Dates":DateRange})
     combineddates = pd.concat([entrydates,exitdates]).sort_values("Dates")
-    daily_changes = combineddates.groupby('Dates')['Value'].sum().reset_index()
+    daily_changes = combineddates.groupby('Dates')['Value'].soum().reset_index()
     daily_changes = pd.merge(DateRange, daily_changes, on = "Dates", how = "left").fillna(0)
    # print(daily_changes)
     daily_changes["active_dFADs"] = daily_changes['Value'].cumsum()
