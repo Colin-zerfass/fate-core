@@ -265,6 +265,8 @@ def list_of_latlon(data, droplast = True ):
     points = np.empty((1,2))
     for n in range(0,len(lines)):
         dummyline = lines[n]
+        if dummyline == None:
+            continue
         cords  = np.array(dummyline.coords)
         if droplast == True:
             cords = cords[:-1]

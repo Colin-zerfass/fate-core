@@ -15,20 +15,20 @@ from functions.funcs import *
 
 ##load some data 
 ## Loads the Velosity field
-fname = r"..\Data\krigging_field.nc"
+fname = r"..\Data\krigging_field_40.nc"
 field = xr.open_dataset(fname )
+#field = field.rename({"longitude":"lon", "latitude": "lat"}) ## if using cmems
+
 ##Loads the dFADs 
 ds = gpd.read_parquet(r"..\Data\Mapped_SAT_MI_Cleanedspeeds.parquet")
-monthrange = pd.date_range("2021-07-1","2025-09-1", freq= "MS")
+monthrange = pd.date_range("2024-01-1","2025-01-1", freq= "MS")
 for month in range(len(monthrange)-1):
     daterange = pd.date_range(monthrange[month], monthrange[month+1])
-
+    dssave = pd.DataFrame()
+    dssave = pd.DataFrame(columns = ["BuoyID","Time", "lat_true", "lon_true", "lat_forcast", "lon_forcast", "leadtime"])
     for day in daterange:
         target_date = day ## picks dFAD locations one day after this date 
         print(target_date)
-        dssave = pd.DataFrame(columns = ["BuoyID","Time", "lat_true", "lon_true", "lat_forcast", "lon_forcast", "leadtime"])
-
-
 
         ds_active = querry_date(ds, date = target_date) ## All of the active dFADs at this time 
         ds_active = ds_active.reset_index()
@@ -68,7 +68,7 @@ for month in range(len(monthrange)-1):
         filenames = {"uo": fname, "vo": fname}
         variables  = {"U": "uo", "V": "vo"}
         dimensions = {"lat": "lat", "lon": "lon"}
-        field_t = field.sel(time = target_date, method = "nearest").drop_vars("time") ## Not 
+        field_t = field.sel(time = target_date, method = "nearest").drop_vars("time") ## IF CMEMS add depth = 15 argument 
         runtime = pd.Timedelta(days =8)
 
         # fieldsetperm = parcels.FieldSet.from_netcdf(filenames, variables, dimensions)
@@ -161,11 +161,16 @@ for month in range(len(monthrange)-1):
             lons = output.lon[i,:].values[mask]
             lat_interp = np.interp(dFAD_leadtime[1:], leadtimes,lats)
             lon_interp = np.interp(dFAD_leadtime[1:], leadtimes, lons) 
+            lat_interp = np.insert(lat_interp, 0,np.nan)
+            lon_interp = np.insert(lon_interp, 0,np.nan)
             if row["geometry"] == None:
                 continue
             lon_true, lat_true= row["geometry"].xy
-            Bouylist = [id]*len(lat_true[1:]) 
-            dstemp= pd.DataFrame({"BuoyID": Bouylist, "Time": Times[1:], "lat_true": lat_true[1:],"lon_true":lon_true[1:], "lat_forcast": lat_interp, "lon_forcast": lon_interp, "leadtime": dFAD_leadtime[1:]/3600 })
+            Bouylist = [id]*len(lat_true) 
+            dstemp= pd.DataFrame({"BuoyID": Bouylist, "Time": Times,
+                                   "lat_true": lat_true,"lon_true":lon_true, ""
+                                   "lat_forcast": lat_interp, "lon_forcast": lon_interp, 
+                                   "leadtime": dFAD_leadtime/3600 })
             dssave = pd.concat([dssave, dstemp])
 
     dssave.to_csv(rf"output\Forecast{[month]}.csv")

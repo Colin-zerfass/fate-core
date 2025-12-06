@@ -16,8 +16,8 @@ def querry_date(data:gpd.GeoDataFrame, date)-> gpd.GeoDataFrame:
 ds = ds.reset_index(drop=True )
 
 ## get range of start and stop dates
-start_date = ds.MinOfDate.min().date()
-end_date = ds.MaxOfDate.max().date()
+start_date = "2024-01-01" ##ds.MinOfDate.min().date()
+end_date = "2025-01-01" ##ds.MaxOfDate.max().date()
 timedelta = pd.Timedelta(days= 1) ##How often should this make a forcast 
 date_range = pd.date_range(start_date, end_date, freq=timedelta)
 
@@ -25,6 +25,8 @@ date_range = pd.date_range(start_date, end_date, freq=timedelta)
 data = xr.open_dataset(r"Code\cmems.nc") ##using same cordinates as cmems. 
 lats = data.latitude
 lons = data.longitude
+lons = np.linspace(-163.83333, -160.41667, 126)
+lats = np.linspace(4.41667, 7.83333, 126)
 uos = []
 vos = []
 
@@ -94,4 +96,4 @@ vo_da = xr.DataArray(
 
 ds_krigg = xr.Dataset({"uo": uo_da, "vo": vo_da})
 
-ds_krigg.to_netcdf("Code\Data\kirgging_field.nc")
+ds_krigg.to_netcdf("Code\Data\kirgging_field_40.nc")
