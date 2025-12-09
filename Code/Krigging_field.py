@@ -1,3 +1,5 @@
+"""Creates a krigging field for each day. This file produces the the field used for krigging forcasting"""
+
 import pandas as pd 
 import numpy as np 
 import geopandas as gpd 
