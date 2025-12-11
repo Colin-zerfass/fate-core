@@ -4,72 +4,9 @@ import pandas as pd
 import numpy as np
 import shapely as sp
 import xarray as xr
-
-def RandTrajectories(ds, amount):
-    """plots random Trajectories from dataset provided"""
-    length = ds.shape[0]
-    ds = ds.reset_index()
-    randarray = np.random.randint(0,length,amount)
-    fig, ax = plt.subplots()
-    for n in range(0,amount):
-        line = ds.at[randarray[n],'geometry']
-        x,y = line.xy
-        ax.plot(x,y)
-    ax.set_xlabel("Longitude")
-    ax.set_ylabel("latitude")
-    return fig, ax
-
-def OneTrajectory(ds,index, ax, window:int = None , itime:int =None):
-    line = ds.at[index,'geometry']
-    x,y = line.xy
-    if window !=None: ## adds padding to end of the array for sliding window
-        x= np.array(x)
-        y=np.array(y)
-        nans = np.fill(window,np.nan)
-        x = np.concatenate((x,nans))
-        nans = np.fill(window,np.nan)
-        y = np.concatenate((y,nans))
-    ax.plot(x,y)
-    ax.set_xlabel("Longitude")
-    ax.set_ylabel("latitude")
-    return ax
-
-def Plotting(ds, amount):
-    fig, ax = plt.subplots()
-    for p in range(0,amount):
-        line = ds.at[p,'geometry']
-        x,y = line.xy
-        name = ds.at[p,'Name_ID']
-        ax.plot(x,y,label = name)
-    ax.set_xlabel("Longitude")
-    ax.set_ylabel("latitude")
-    box = ax.get_position()
-    ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
-    ax.scatter(-162.078333, 5.883611,  s = 20,color = "r", label = "Palymra", marker = "*")
-    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-    return fig , ax
-
-def AllTrajectories(ds,amount,OutputPath, id = bool):
-    """Plots all data in the data set with the "amount" being how many trajectories on each plot"""
-    length = ds.shape[0]
-    ds = ds.reset_index()
-    its = length//amount
-    rem = length%amount
-    for n in range(0,its): ## amount of full plots to be made 
-        i = n*amount
-        data  = ds[i:i+amount]
-        data = data.reset_index()
-        fig, ax = Plotting(data,amount=amount)
-        Palmyra_plot(ax)
-        fig.savefig(OutputPath+f"_{n}.png")
-
-    if rem > 0: 
-        data = ds[-rem:]
-        data = data.reset_index()
-        fig, ax = Plotting(data,amount=rem)
-        fig.savefig(OutputPath+f"_extra.png")
-        
+   
 def monthly_data(data):
+    """Returns a list of monthly trajectories"""
     monthly_data = []
 
     for i in range(1,13):
@@ -124,21 +61,10 @@ def Palmyra_obj():
     import shapely as shp
     return shp.points(-162.078333, 5.883611,)
 
-def Palmyra_plot(ax):
-    """"Plots Palmyra onto the graph Returns as """
-    Palmyra = Palmyra_obj()
-    ax.scatter(Palmyra.x,Palmyra.y, marker  = "o", color = "darkgreen", label = "Palmyra", s= 10)
-    return ax 
-
 def Kingman_obj():
     """Returns cords of Palymra as a point"""
     import shapely as shp
     return shp.points(-162.41667, 6.3833,)
-
-def Kingmon_plt(ax):
-    kingman = Kingman_obj()
-    ax.scatter(kingman.x,kingman.y, marker  = "o", color = "darkgreen", label = "Kingman Reef", s =10)
-    return ax
 
 def distance_from_Palymra(ds):
 
@@ -278,19 +204,6 @@ def list_of_latlon(data, droplast = True ):
     lat  = rotatedpoints[0][1:]
     lon = rotatedpoints[1][1:]
     return lat, lon
-
-def plotting_direction(lat, lon, delx_list, dely_list,ax,scale = int,  bins= int):
-    from scipy.stats import binned_statistic_2d
-    x_values = binned_statistic_2d(lon, lat, delx_list, statistic= "mean", bins = bins)
-    y_values = binned_statistic_2d(lon, lat, dely_list, statistic= "mean", bins = bins)
-    xbound = x_values[1]
-    ybound = x_values[2]
-    X, Y = np.meshgrid(xbound[:-1], ybound[:-1])
-    ax.quiver(X, Y,x_values[0],y_values[0], scale = scale)
-    #ax.set_title("Average Direction of dFADS travel")
-    ax.set_xlabel("longitude")
-    ax.set_ylabel("Latitude")
-    return ax
 
 def plotting_zoom(d, ax):
     palmyra = Palmyra_obj()
@@ -486,17 +399,6 @@ def Rolling_mean(x = list,windowsize = int):
     line  = line.to_list()
     return line
 
-def OneTrajectory(ax, ds= gpd.GeoDataFrame,index= int ):
-    """For plotting a single Trajectory on specified axis"""
-    line = ds.at[index,'geometry']
-    if line == None: 
-        return ax
-    x,y = line.xy
-    ax.plot(x,y)
-    ax.set_xlabel("Longitude")
-    ax.set_ylabel("latitude")
-    return ax
-
 def Rolling_avg_no_nan(list, window):
     x = Rolling_mean(list, window)
     x = np.array(x)
@@ -647,44 +549,6 @@ def bootstrapping_each_box(lat, lon, variable, bins = 10):
     errorbars = errors - Values
    
     return Values, errorbars, xedges, yedges, errors
-
-def Add_bathymetry(fig,ax):
-    from matplotlib import cm
-    bath = xr.open_dataset(r"Code\Data\bath.nc")
-    bath_cmap = cm.get_cmap("Blues_r").copy()
-    bath_cmap.set_over('green')
-    negative_levels = np.linspace(-10000, 0, 11)
-    cbr = ax.contourf( bath["lon"], bath["lat"], bath["elevation"], 
-                    linestyle = "-", cmap = bath_cmap, alpha = 0.8, levels = negative_levels, extend = "max")
-    fig.colorbar(cbr)
-    cbr.set_label("m/s")
-    return fig, ax
-
-def NWR_exteriors(data):
-    """Returns Exteriors and Interiors from NWP dataset."""
-    from shapely.ops import unary_union
-    geo = data["geometry"][0]
-    geomentry = []
-
-    for polygon in geo.geoms:
-        exterior = polygon.exterior
-        geomentry.append(sp.Polygon(exterior))
-        interior_holes = []
-        for interior in polygon.interiors:
-            interior_holes.append(sp.Polygon(interior))
-        combined_holes = unary_union(interior_holes)
-        geomentry.append(combined_holes)
-        #multipolygon = sp.MultiPolygon(exteriors)
-    labels = ["Palmyra NWR", np.nan,"Kingman NWR", np.nan]
-    gpddata = gpd.GeoDataFrame({"labels":labels, "geometry": geomentry})
-    return gpddata
-
-def plot_NWPs(ax,data):
-    """Plots Palymra and Kingmon Reef, Pass in Shape file as data
-    Returns Ax"""
-    NWR_ext = NWR_exteriors(data)
-    NWR_ext.plot(ax= ax, edgecolor= "darkgreen",alpha = 0.35, column= "labels", legend= True, categorical=True)
-    return ax 
 
 def Column_to_List(data, column:str, idlist = False):
     """Returns a column as a long list of values"""
@@ -979,7 +843,12 @@ def querry_date(data:gpd.GeoDataFrame, date)-> gpd.GeoDataFrame:
     data = data.query("MaxOfDate >= @date")
     return data
 
-class plotting:
-    def __init__():
-        ...
-    
+def True_dFAD_data(ds, buoyID):
+    """Turns one dFAD into a DataFrame"""
+    Truedata = ds.query("BuoyName == @buoyID").reset_index(drop = True)
+    x,y= Truedata.at[0,"geometry"].xy
+    time = Truedata.at[0,"TimeStamp"]
+    Truedata = pd.DataFrame({"DateTime":time, "lat_true": y, "lon_true": x})
+    Truedata.DateTime = pd.to_datetime(Truedata.DateTime)
+    return Truedata
+

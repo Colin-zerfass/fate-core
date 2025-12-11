@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "functions"
+version = "0.1.0"
+description = "My utility functions"
+
+# These are the libraries your code imports
+dependencies = [
+    "numpy",
+    "pandas",
+    "matplotlib",
+]
+
+[tool.setuptools]
+packages = ["functions"]

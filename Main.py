@@ -10,7 +10,7 @@ data = gpd.read_parquet(r"Code\Data\Palmyra Data\SAT_MI_FAD_cleanedspeeds.parque
 
 dataNWR = gpd.read_file(r"Code\Data\Palmyra_Shapefiles",  layer = 'PAL_KING_NWR_12nm')
 
-if False: ## Cleans the dFAD file based on speed positions and saves 
+if False: ## Cleans the dFAD file based on speed positions and saves , This is an old method od cleaning check Cleaning_data.py
     ### Method for cleaning data: Read Remove_speeds_high_low for method & check documentation.
     ##This is done before mapping otherwise needs to mask out Mapped velosities.
     ###Adding columns needed to the data
