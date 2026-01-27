@@ -26,7 +26,7 @@ def persistence_model(merged_df, start_time, window_hrs, max_horizon_hrs=None, d
  
     # Base row
     row_t0 = df.loc[(df['DateTime'] ==start_time)]
-    print(row_t0)
+    #print(row_t0)
     lat_t0 = row_t0["Latitude_true"].values
     lon_t0 = row_t0["Longitude_true"].values
      
@@ -119,7 +119,7 @@ for month in range(len(monthrange)-1):
     daterange = pd.date_range(monthrange[month], monthrange[month+1])
     dssave = pd.DataFrame()
     #dssave = pd.DataFrame(columns = ["BuoyID","Time", "lat_true", "lon_true", "lat_forcast", "lon_forcast", "leadtime"])
-    dssave = pd.DataFrame(columns = [ "BouyID" , "DateTime", "Latitude_true", "Longitude_true", "Latitude_persistence",  
+    dssave = pd.DataFrame(columns = [ "BuoyID" , "DateTime", "Latitude_true", "Longitude_true", "Latitude_persistence",  
                                      "Longitude_persistence",  "speed_ms_persistence"  ,"lead_time_hours"])
     for day in daterange:
         target_date = day ## picks dFAD locations on this date 
@@ -168,7 +168,7 @@ for month in range(len(monthrange)-1):
         for i in range(len(dFADs)):
             ### this has to be for each Bouy
             BuoyID = dFADs.at[i, "BuoyName" ]
-            print(BuoyID)
+            #print(BuoyID)
             target_time = dFADs.at[i, "TimeStamp" ]
             #Time = dFADs.at[2,"TimeStamp"]
             dFAD = ds.query(f"BuoyName == @BuoyID").reset_index(drop = True)

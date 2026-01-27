@@ -8,6 +8,8 @@
   - [Adding and Cleaning Data](#adding-and-cleaning-new-data)
 - [Analysis](#analysis)
 - [ocean parcels kriging and cmems](#ocean-parcels-kriging-and-cmems)
+
+This is a test change
   
 # Project Overview 
 This repository has code for the analysis and forcasting of dFADs. This work was part of a NASA OTEM internship working on the FATE project. Inside are scripts to combine, clean, and add new dFAD data into a standard form. Also a bunch of analaysis of the dFAD data, spacial distibutions, speeds and compairson to CMEMS (a dynamical Global ocean assimulated model). Also included are methods to forcast dFADs based of CMEMS, Krigging, and persistence. 
@@ -24,8 +26,8 @@ Then Activate enviroment and install requirments
 
  Installing the package developed(in editing mode) called functions
 
-    cd Code
-    pip install -e
+    
+    pip install -e .\Code\
  
  This creates the Package of fucntions to be used throughout the repository in edit mode. This means changes to the utilities in the package are updated on the next `import functions` call. This has `functions.plotting` and `functions.funcs`
 

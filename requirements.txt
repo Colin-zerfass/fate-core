@@ -6,3 +6,4 @@ parcels
 scipy
 seaborn
 xarray
+jupyter-notebook
