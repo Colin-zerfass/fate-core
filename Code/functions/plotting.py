@@ -20,7 +20,7 @@ def RandTrajectories(ds, amount):
     ax.set_ylabel("latitude")
     return fig, ax
 
-def OneTrajectory(ds,index, ax, window:int = None , itime:int =None):
+def OneTrajectory(ds,index, ax, window:int = None , itime:int =None, **kwargs):
     """Plots the Trajectory at index, returns the ax """
     line = ds.at[index,'geometry']
     x,y = line.xy
@@ -31,7 +31,7 @@ def OneTrajectory(ds,index, ax, window:int = None , itime:int =None):
         x = np.concatenate((x,nans))
         nans = np.fill(window,np.nan)
         y = np.concatenate((y,nans))
-    ax.plot(x,y)
+    ax.plot(x,y, **kwargs)
     ax.set_xlabel("Longitude")
     ax.set_ylabel("latitude")
     return ax
@@ -109,7 +109,7 @@ def plotting_direction(lat, lon, delx_list, dely_list,ax,scale = int,  bins= int
     return ax
 
 
-def Add_bathymetry(fig,ax, filepath = r"Data\bath.nc"):
+def Add_bathymetry(fig,ax, filepath = r"Data\bath.nc", colorbar = True):
     """Adds Bathymetry to the given ax, provide plt fig and ax, 
     Filepath: Location of Bathymetry,"""
     from matplotlib import cm
@@ -119,7 +119,8 @@ def Add_bathymetry(fig,ax, filepath = r"Data\bath.nc"):
     negative_levels = np.linspace(-10000, 0, 11)
     cbr = ax.contourf( bath["lon"], bath["lat"], bath["elevation"], 
                     linestyle = "-", cmap = bath_cmap, alpha = 0.8, levels = negative_levels, extend = "max")
-    fig.colorbar(cbr)
+    if colorbar == True:
+        fig.colorbar(cbr)
     cbr.set_label("m/s")
     return fig, ax
 
