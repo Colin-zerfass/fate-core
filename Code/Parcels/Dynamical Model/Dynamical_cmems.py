@@ -21,30 +21,17 @@ import functions.funcs as fad
 import pandas as pd 
 import numpy as np 
 import shapely as sp 
-import argparse
-import sys
-import os
 
 fname = r"..\..\Data\cmems.nc" ### Change the field to cmems
+field = xr.open_dataset(fname )
 
 
-def main(argv=None):
-    parser = argparse.ArgumentParser(description="Run forecasts for dFADs using CMEMS fields (single-month mode supported)")
-    parser.add_argument("--month-index", type=int, help="Zero-based month index to run (matches internal month loop). If omitted, runs all months.")
-    parser.add_argument("--out-dir", type=str, default=r"..\output", help="Output directory for per-month particle files")
-    args = parser.parse_args(argv)
+ds = gpd.read_parquet(r"..\..\Data\Mapped_SAT_MI_Cleanedspeeds.parquet")
 
-    out_dir = Path(args.out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    ds = gpd.read_parquet(r"..\..\Data\Mapped_SAT_MI_Cleanedspeeds.parquet")
-
-    monthrange = pd.date_range("2024-01-1","2025-01-1", freq= "MS")
-    for month in range(len(monthrange)-1):
-        if args.month_index is not None and month != args.month_index:
-            continue
-        startdate = monthrange[month]
-        enddate = monthrange[month+1] + pd.Timedelta(days =7)
+monthrange = pd.date_range("2024-01-1","2025-01-1", freq= "MS")
+for month in range(len(monthrange)-1):
+    startdate = monthrange[month]
+    enddate = monthrange[month+1] + pd.Timedelta(days =7)
 
         ## Initalizing the final dateset of the dFADs
     dssave = pd.DataFrame() 
@@ -93,8 +80,7 @@ def main(argv=None):
     filenames = {"uo": fname, "vo": fname}
     variables  = {"U": "uo", "V": "vo"}
     dimensions = {"lat": "latitude", "lon": "longitude", "time" : "time"}
-    ## open field for this process and select time slice
-    field = xr.open_dataset(fname)
+    ## fix this and make it a non static field
     field_t = field.sel(time = slice(startdate, enddate), depth = 15.81007).drop_vars("time")## IF CMEMS add depth = 15 argument
     runtime = enddate - startdate + pd.Timedelta(days = 5)
 
@@ -130,7 +116,7 @@ def main(argv=None):
                                         lat = dFADs.lat.to_list() , time = dFADs.timedelta, Buoyindex = dFADs.index.values) 
 
     output_memorystore = zarr.storage.MemoryStore()
-    output_file = pset.ParticleFile(name = str(out_dir / f"TestParticleFile{month}.zarr"), outputdt =timedelta(hours= 1))
+    output_file = pset.ParticleFile(name = f"..\output\TestParticleFile{month}.zarr", outputdt =timedelta(hours= 1))
 
 
     pset.execute([parcels.AdvectionRK4, boundryCondition, Age, end_forcast], 
@@ -142,7 +128,3 @@ def main(argv=None):
     ####____________________________
     print("Model run complete \n handling the output")
     ###_____________________________
-
-
-if __name__ == '__main__':
-    main()

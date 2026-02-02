@@ -843,6 +843,14 @@ def querry_date(data:gpd.GeoDataFrame, date)-> gpd.GeoDataFrame:
     data = data.query("MaxOfDate >= @date")
     return data
 
+def querry_date_range(data:gpd.GeoDataFrame, startdate, enddate)-> gpd.GeoDataFrame:
+    """Returns dFADs active within the daterange, 
+    WARNING: dFADs that leave and reenter the box at a later time are considered still active"""
+
+    data = data.query("MinOfDate <= @enddate")
+    data = data.query("MaxOfDate >= @startdate")
+    return data
+
 def True_dFAD_data(ds, buoyID):
     """Turns one dFAD into a DataFrame"""
     Truedata = ds.query("BuoyName == @buoyID").reset_index(drop = True)

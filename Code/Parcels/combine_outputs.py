@@ -5,7 +5,7 @@ import pandas as pd
 
 # --- SETTINGS ---
 input_folder = r"./output"      # folder containing your csv files
-output_csv   = r"./saved_output/combined_Percistance_2024.csv"    # final combined file name
+output_csv   = r"./saved_output/cmems_dynamical.csv"    # final combined file name
 
 # --- COLLECT ALL CSV FILE PATHS ---
 csv_files = [os.path.join(input_folder, f)
