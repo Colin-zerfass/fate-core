@@ -1,3 +1,9 @@
+"""Includes two classes: 
+A) "Dataloader": loads dFAD data to be used in Ocean Parcels 
+B) "Alligner" : Alligns forecast data with the True dFAD data 
+"""
+
+
 import pandas as pd
 import geopandas as gpd 
 import functions.funcs as fad
@@ -9,6 +15,12 @@ import xarray as xr
 
 
 class Dataloader():
+    """ Loads posstions of dFADs on a given day. 
+    ds: gpd.GeoDataFrame is the master dFAD file 
+    dFADs: is the output of the possitions of dFADs on a given day
+
+    Use Case: Loads data and gets possitions for testing hindcasts
+    """
     def __init__(self, ds: gpd.GeoDataFrame):
         self.ds = ds
         self.dFADs = pd.DataFrame(columns = ["BuoyName","lat", "lon", "TimeStamp", "x_speed", "y_speed"] )
@@ -61,7 +73,6 @@ class Alligner():
     def Forcast_snippit(self,ds: gpd.GeoDataFrame, dates, startdate, length)-> gpd.GeoDataFrame: 
         """Grad only the snipbit of dFAD trajectory that lines up with forcast window"""
         ds_s = ds.copy()
-        print(ds_s)
         forecast_end = startdate + length
         for i in range(len(ds)): ## Try and grab at the exact start times from dates they should be the same
             timelist = (ds_s.at[i,"TimeStamp"])
@@ -95,17 +106,27 @@ class Alligner():
         dFADs_s = dFADs.iloc[output.Buoyindex.values].reset_index(drop = False)
    
         emptydata = 0
+        lat_interp_l = []
+        lon_interp_l = []
+        BuoyID_l = []
+        Time_l = []
+        lat_true_l = []
+        lon_true_l = []
+        leadtimes_l = []
         for i, index in enumerate(output.Buoyindex.values): 
             """Take one forcast and matches it with one True Trjactory"""
-            print(i)
+            if i%100 == 0: 
+                print(f"{i} in month {month}")
             id = dFADs_s.BuoyName[i]
             row =  ds_short_t.query("BuoyName == @id").reset_index(drop = True)
             row = row.iloc[0]
             Times= row["TimeStamp"]
             dFAD_times = (Times - startdate).total_seconds() ## convet to seconds since model started 
             mask = masklarge[i,:] 
+            ## added for updated times 
             forcast_time_start = (output.time[i,:].values[mask])  ## converts to seconds since model has started. 
-            forcast_time_start = forcast_time_start/np.timedelta64(1, "s")
+            forcast_time_start = forcast_time_start - np.datetime64(startdate)
+            forcast_time_start = forcast_time_start/np.timedelta64(1, "ns")/1e9 ## converts it to seconds 
             #print(forcast_time_start/3600)
             #print(dFAD_times/3600)
             dFAD_times_s = dFAD_times[dFAD_times > forcast_time_start[0]]  ## filters true dFADs locations to be inrange with dFAD forcasts 
@@ -125,9 +146,9 @@ class Alligner():
                 continue
             if row["geometry"] == None:
                 continue
-            print(forcast_time_start)
-            print(dFAD_times)
-            print(dFAD_times_s)
+            # print(forcast_time_start)
+            # print(dFAD_times)
+            # print(dFAD_times_s)
             # print(dFAD_times_s)
             ## get index of first true point thats used in the forcast 
             idx_start = np.where(dFAD_times == dFAD_times_s[0])[0][0] ## fails at case where there is no true data 
@@ -139,32 +160,60 @@ class Alligner():
             Times = Times[idx_start-1:idx_end+1]
             leadtimes = (Times - Times[0])
             leadtimes = leadtimes.total_seconds()/3600
-            print(leadtimes)
+            # print(leadtimes)
 
             Buoylist = [id]*len(lat_true) 
             dstemp= pd.DataFrame({"BuoyID": Buoylist, "Time": Times,
                                     "lat_true": lat_true,"lon_true":lon_true, ""
                                     "lat_forcast": lat_interp, "lon_forcast": lon_interp, 
                                     "leadtime": leadtimes })
-            self.dssave = pd.concat([self.dssave, dstemp])
+            BuoyID_l.extend (Buoylist)
+            Time_l.extend(Times)
+            lat_true_l.extend(lat_true)
+            lon_true_l.extend(lon_true)
+            lat_interp_l.extend(lat_interp)
+            lon_interp_l.extend(lon_interp)
+            leadtimes_l.extend(leadtimes)
 
-            if i == 20:  ## Error already shows up in 
-                self.dssave.to_csv(rf"output\Forecast{[month]}.csv")
-                break
+        self.dssave =  pd.DataFrame({"BuoyID": BuoyID_l,"Time": Time_l, "lat_true": lat_true_l, "lon_true": lon_true_l, "lat_forcast":lat_interp_l,
+                                      "lon_forcast":lon_interp_l, "leadtime":leadtimes_l})
+        self.dssave.to_csv(rf"output\Forecast{[month]}.csv")
 
+def main(startdate, enddate, monthindex):
+     print(f"Starting on month {monthindex}")
+     ds = gpd.read_parquet(r"..\Data\Mapped_SAT_MI_Cleanedspeeds.parquet")
+     engine = Alligner(ds)
+     engine.allign_data_MultipleDays(rf"output\TestParticleFile{monthindex}.zarr", startdate, enddate, pd.Timedelta(days = 7), monthindex )
+     print(f"finished month {monthindex}")
 
 if __name__ == "__main__" : 
+    if True: 
+        """Runs interpoliations onto the true data in Parallel estimated time ~ 20min/year of forecasts"""
+        import multiprocessing as mp
+        monthrange = pd.date_range("2024-01-01", "2025-01-01", freq="MS")
+
+        # Build tuples of (start, end, index)
+        inputs = list(zip(
+            monthrange[:-1],
+            monthrange[1:],
+            range(len(monthrange)-1)
+        ))
+
+        with mp.Pool(processes=12) as pool:
+            results = pool.starmap(main, inputs)
+
     if False: 
         ds = gpd.read_parquet(r"..\Data\Mapped_SAT_MI_Cleanedspeeds.parquet")
 
         monthrange = pd.date_range("2024-01-1","2025-01-1", freq= "MS")
         for month in range(len(monthrange)-1):
-            engine = Alligner(ds ,month)
+            print(f"Starting on month {monthrange[month]}")
+            engine = Alligner(ds)
             engine.allign_data_MultipleDays(rf"output\TestParticleFile{month}.zarr", monthrange[month], monthrange[month+1], pd.Timedelta(days = 7), month )
-    if True: 
+    if False: 
         ds = gpd.read_parquet(r"..\Data\Mapped_SAT_MI_Cleanedspeeds.parquet")
         engine = Alligner(ds)
-        engine.allign_data_MultipleDays(rf"output\TestParticleFile0.zarr",
-                                         pd.to_datetime("2024-1-1"), pd.to_datetime("2024-1-3"), 
-                                         pd.Timedelta(days=7), 0)
+        engine.allign_data_MultipleDays(rf"Dynamical Model\TestParticleFile.zarr", #"Dynamical Model\TestParticleFile.zarr"
+                                         pd.to_datetime("2024-03-1"), pd.to_datetime("2024-4-1"), 
+                                         pd.Timedelta(days=7), 22)
         

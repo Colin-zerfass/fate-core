@@ -1,7 +1,9 @@
 """
-Run Forcasts for dFADs with dynamical CMEMS models istead of static velocity fields
+python Dynamical_cmems_monthly_parallel.py 
 
-Can run each month at a time since field for all dFADs is the same. 
+Run Forcasts for dFADs with dynamical CMEMS models instead of static velocity fields
+
+Can run each month at a time since the months are independent  
 
 1) Collect all dFADs initial possitions for forcasting.
         - Same method as 'run_model.py' 
@@ -21,23 +23,18 @@ import functions.funcs as fad
 import pandas as pd 
 import numpy as np 
 import shapely as sp 
-
-fname = r"..\..\Data\cmems.nc" ### Change the field to cmems
-field = xr.open_dataset(fname )
+import sys 
 
 
-ds = gpd.read_parquet(r"..\..\Data\Mapped_SAT_MI_Cleanedspeeds.parquet")
+def Run_model(startdate, enddate, monthindex):
+     
+    """Wrapper function to run cmems dynamical forecasts"""
+    #loading the data
+    fname = r"..\..\Data\cmems.nc" ### Change the field to cmems
+    field = xr.open_dataset(fname )
+    ds = gpd.read_parquet(r"..\..\Data\Mapped_SAT_MI_Cleanedspeeds.parquet")
 
-monthrange = pd.date_range("2024-01-1","2025-01-1", freq= "MS")
-for month in range(len(monthrange)-1):
-    startdate = monthrange[month]
-    enddate = monthrange[month+1] + pd.Timedelta(days =7)
-
-        ## Initalizing the final dateset of the dFADs
-    dssave = pd.DataFrame() 
-    dssave = pd.DataFrame(columns = ["BuoyID","Time", "lat_true", "lon_true", "lat_forcast", "lon_forcast", "leadtime"])
-
-    Monthdaterange = pd.date_range(startdate, enddate - pd.Timedelta(days =7), freq= "D")
+    Monthdaterange = pd.date_range(startdate, enddate, freq= "D")
 
     dFADs = pd.DataFrame(columns = ["BuoyName","lat", "lon", "TimeStamp", "x_speed", "y_speed"] )
 
@@ -71,18 +68,19 @@ for month in range(len(monthrange)-1):
     ds_active = fad.querry_date_range(ds, startdate= startdate, enddate= enddate)
     dFADs = dFADs.reset_index(drop = True)
     dFADs.TimeStamp = pd.to_datetime(dFADs.TimeStamp)
-    print(f"amount of dFADs: {len(dFADs)}")
+
+    print(f"{monthindex} amount of dFADs: {len(dFADs)}")
     #_________________________________________
     ## Make the model... 
-    print(f"making Forecasts from {startdate} -- {enddate}")
+    print(f"{monthindex} making Forecasts from {startdate} -- {enddate}")
 
     ## Make the model... 
     filenames = {"uo": fname, "vo": fname}
     variables  = {"U": "uo", "V": "vo"}
     dimensions = {"lat": "latitude", "lon": "longitude", "time" : "time"}
     ## fix this and make it a non static field
-    field_t = field.sel(time = slice(startdate, enddate), depth = 15.81007).drop_vars("time")## IF CMEMS add depth = 15 argument
-    runtime = enddate - startdate + pd.Timedelta(days = 5)
+    field_t = field.sel(time = slice(startdate, enddate + pd.Timedelta(days= 7)), depth = 15.81007) ## IF CMEMS add depth = 15 argument
+    runtime = enddate - startdate + pd.Timedelta(days = 7)
 
     # fieldsetperm = parcels.FieldSet.from_netcdf(filenames, variables, dimensions)
     fieldset  = parcels.FieldSet.from_xarray_dataset(field_t, variables, dimensions, allow_time_extrapolation= True) 
@@ -113,10 +111,10 @@ for month in range(len(monthrange)-1):
     Particles = Particles.add_variable("Buoyindex", to_write = 'once')
 
     pset = parcels.ParticleSet.from_list(fieldset, pclass = Particles , lon = dFADs.lon.to_list(), 
-                                        lat = dFADs.lat.to_list() , time = dFADs.timedelta, Buoyindex = dFADs.index.values) 
+                                        lat = dFADs.lat.to_list() , time = dFADs.timedelta.to_list(), Buoyindex = dFADs.index.values) 
 
     output_memorystore = zarr.storage.MemoryStore()
-    output_file = pset.ParticleFile(name = f"..\output\TestParticleFile{month}.zarr", outputdt =timedelta(hours= 1))
+    output_file = pset.ParticleFile(name = f"..\output\TestParticleFile{monthindex}.zarr", outputdt =timedelta(hours= 1))
 
 
     pset.execute([parcels.AdvectionRK4, boundryCondition, Age, end_forcast], 
@@ -126,5 +124,27 @@ for month in range(len(monthrange)-1):
                 )
 
     ####____________________________
-    print("Model run complete \n handling the output")
+    print(f"Model {monthindex} run complete")
     ###_____________________________
+
+
+## run models
+import multiprocessing as mp
+if __name__ == "__main__":  
+
+    """Method of running the model on given number of threads, one model runs on each thread sectioned by the monthrange above"""
+    
+    monthrange = pd.date_range("2024-01-01", "2025-01-01", freq="MS")
+
+    # Build tuples of (start, end, index)
+    inputs = list(zip(
+        monthrange[:-1],
+        monthrange[1:],
+        range(len(monthrange)-1)
+    ))
+
+    with mp.Pool(processes=6) as pool:
+        results = pool.starmap(Run_model, inputs)
+
+    print("Results:", results)
+
