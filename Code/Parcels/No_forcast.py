@@ -107,7 +107,7 @@ for month in range(len(monthrange)-1):
             row=  get_buoy_row(ds_short_t, id)
             Times= row["TimeStamp"]
             starttime = Times[0]
-            dFAD_leadtime = (Times - starttime).astype("int64")/1e9 ## convets leadtime to seconds 
+            dFAD_leadtime = (Times - starttime).total_seconds()#.astype("int64")/1e9 ## convets leadtime to seconds 
             if row["geometry"] == None:
                 continue
             lon_true, lat_true= row["geometry"].xy
