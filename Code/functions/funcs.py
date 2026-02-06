@@ -56,6 +56,43 @@ def haversine_dist_with_negetive(lat1, lon1, lat2, lon2):
         distance =-distance
     return distance
 
+def haversine_df(df, lat1='lat1', lon1='lon1', lat2='lat2', lon2='lon2', radius=6371):
+    """
+    Compute the Haversine distance between two points for every row of a DataFrame.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame containing latitude/longitude columns
+    lat1, lon1 : str
+        Names of the first point's latitude/longitude columns
+    lat2, lon2 : str
+        Names of the second point's latitude/longitude columns
+    radius : float
+        Earth radius in meters (default is 6371000 m)
+
+    Returns
+    -------
+    pandas.Series
+        Distance (meters) for each row.
+    """
+
+    # Convert degrees → radians
+    lat1_r = np.radians(df[lat1].values)
+    lon1_r = np.radians(df[lon1].values)
+    lat2_r = np.radians(df[lat2].values)
+    lon2_r = np.radians(df[lon2].values)
+
+    # Differences
+    dlat = lat2_r - lat1_r
+    dlon = lon2_r - lon1_r
+
+    # Haversine formula
+    a = np.sin(dlat / 2)**2 + np.cos(lat1_r) * np.cos(lat2_r) * np.sin(dlon / 2)**2
+    c = 2 * np.arcsin(np.sqrt(a))
+
+    return radius * c
+
 def Palmyra_obj():
     """Returns cords of Palymra as a point"""
     import shapely as shp
