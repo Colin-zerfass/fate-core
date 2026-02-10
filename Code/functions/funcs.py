@@ -352,10 +352,11 @@ def Add_Delta_speeds(ds = gpd.GeoDataFrame):
     ds["delta_speed"] = delta_speeds
     return ds
 
-def Add_interp_currents(data,vo,uo):
+def Add_interp_currents(data,vo,uo, cmems = True):
+    """depth = False is the tag for oscar"""
     from scipy.interpolate import interpn 
     def closest_point(data, lat, lon, depth, time):
-        nearest = data.sel(latitude = lat, longitude = lon, depth = depth,time = time, method = "nearest") 
+        nearest = data.sel(lat = lat, lon = lon,time = time, method = "nearest") ## add depth back if it mapping onto cmems and change lat -> latitude, lon -> longitude
         return nearest
     
     def second_time(time,nearest ):
@@ -377,9 +378,14 @@ def Add_interp_currents(data,vo,uo):
     y = vo.latitude.to_numpy()
     x = vo.longitude.to_numpy()
     cords = (y,x)
+    if cmems == False:
+        y = vo.lat.to_numpy()
+        x = vo.lon.to_numpy() -360
+        cords = (x,y)
 
     for i in range(len(data)):
-        print(i)
+        if i %50: 
+            print(i)
         pointlegnth = len(data.at[i,"TimeStamp"])
         mapped_u = []
         mapped_v = []
@@ -390,13 +396,21 @@ def Add_interp_currents(data,vo,uo):
             lat = point.y
             lon = point.x
             poi = (lat,lon)
+            if cmems == False:
+                poi = (lon,lat)
             ##getting the nearest two points
             ##First V
-            valuest1 = vo.sel(depth = 15,time = time, method="nearest").to_numpy()
+            if cmems == True:   
+                valuest1 = vo.sel(depth = 15,time = time, method="nearest").to_numpy()
+            else:
+                valuest1 = vo.sel(time = time, method="nearest").to_numpy()
             p1 = interpn(cords, valuest1,poi)
             nearest = closest_point(vo,lat,lon,15,time)
             newtime, dayfrac = second_time(time,nearest)
-            valuest2 = vo.sel(depth = 15,time = newtime, method="nearest").to_numpy()
+            if cmems == True:
+                valuest2 = vo.sel(depth = 15,time = newtime, method="nearest").to_numpy()
+            else: 
+                valuest2 = vo.sel(time = newtime, method="nearest").to_numpy()
             p2 = interpn(cords, valuest2,poi)
             values = np.array([p1[0],p2[0]])
             v = np.interp(dayfrac, [0,1], values)
@@ -406,11 +420,17 @@ def Add_interp_currents(data,vo,uo):
             listmapped_v = npmapped_v.tolist()
 
             ##Then U
-            valuest1 = uo.sel(depth = 15,time = time, method="nearest").to_numpy()
+            if cmems == True: 
+                valuest1 = uo.sel(depth = 15,time = time, method="nearest").to_numpy()
+            else: 
+                valuest1 = uo.sel(time = time, method="nearest").to_numpy()
             p1 = interpn(cords, valuest1,poi)
             nearest = closest_point(uo,lat,lon,15,time)
             newtime, dayfrac = second_time(time,nearest)
-            valuest2 = uo.sel(depth = 15,time = newtime, method="nearest").to_numpy()
+            if cmems == True:
+                valuest2 = uo.sel(depth = 15,time = newtime, method="nearest").to_numpy()
+            else: 
+                valuest2 = uo.sel(time = newtime, method="nearest").to_numpy()
             p2 = interpn(cords, valuest2,poi)
             values = np.array([p1[0],p2[0]])
             u = np.interp(dayfrac, [0,1], values)
@@ -424,8 +444,8 @@ def Add_interp_currents(data,vo,uo):
         mapped_vs.append(listmapped_v)
         mapped_us.append(listmapped_u)
     
-    data["mapped_v"] = mapped_vs
-    data["mapped_u"] = mapped_us
+    data["mapped_v_oscar"] = mapped_vs
+    data["mapped_u_oscar"] = mapped_us
     return data
 
 def Rolling_mean(x = list,windowsize = int):

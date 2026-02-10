@@ -6,7 +6,7 @@ from Code.functions.funcs import *
 import xarray as xr 
 from scipy.interpolate import interpn 
 
-data = gpd.read_parquet(r"Code\Data\Palmyra Data\SAT_MI_FAD_cleanedspeeds.parquet")
+data = gpd.read_parquet(r"Code\Data\Mapped_SAT_MI_Cleanedspeeds.parquet")
 
 dataNWR = gpd.read_file(r"Code\Data\Palmyra_Shapefiles",  layer = 'PAL_KING_NWR_12nm')
 
@@ -71,19 +71,19 @@ if True: ## Adds currents velocity data to a data set for dFADs that samples aro
         #data = data.iloc[2920:]
         data = data.reset_index(drop = True)
 
-        ds = xr.open_dataset(r"Code\Data\cmems.nc")
-        vo  = ds['vo'] ## this is y velocity
-        uo = ds['uo'] ## this is x velocity
+        ds = xr.open_dataset(r"Code\Data\OSCAR_combined_2021_2025.nc")
+        vo  = ds['v'] ## this is y velocity for cmems its vo and uo
+        uo = ds['u'] ## this is x velocity
         data[data["MinOfDate"] > ds['time'].to_numpy().min()]
         data[data["MaxOfDate"] < ds['time'].to_numpy().max()]
         data = data.reset_index(drop = True)
 
-        data = Add_interp_currents(data, vo ,uo)
+        data = Add_interp_currents(data, vo ,uo, cmems = False)
         #newdata = pd.DataFrame({"BuoyName" :data["BuoyName"], "Mapped_u": data["mapped_u"], "Mapped_v": data["mapped_v"]})
         #newdata.to_pickle(r"Code\Data\Mapped_speeds.pkl")
         #newdata.to_parquet(r"Code\Data\Mapped_speeds.parquet")
         #data.to_file(r"Data\Mapped_data\Mapped_4hr_period.shp")
-        data.to_parquet(r"Code\Data\Mapped_SAT_MI_Cleanedspeeds.parquet")
+        data.to_parquet(r"Code\Data\MappedOSCAR_SAT_MI_Cleanedspeeds.parquet")
 
 if False: ##Makes plot of nonunique dFADs
     non_unique = nonUnique_tracks(data)
