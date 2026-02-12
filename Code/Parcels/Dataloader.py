@@ -1,4 +1,5 @@
 """Includes two classes: 
+to be ran after running the dynamical model. goes from .zarr to .csv files with forecasts alligned to true data
 A) "Dataloader": loads dFAD data to be used in Ocean Parcels 
 B) "Alligner" : Alligns forecast data with the True dFAD data 
 """
@@ -103,7 +104,8 @@ class Alligner():
 
 
         dFADs = self.True_dFAD_data.dFADs #3This loads the data in the same order as the model does
-        dFADs_s = dFADs.iloc[output.Buoyindex.values].reset_index(drop = False)
+        print(f"loading Data in month {month}")
+        dFADs_s = dFADs.iloc[output.Buoyindex.values].reset_index(drop = False) ## this sorts the data in the order that parcels saves the outputs. 
    
         emptydata = 0
         lat_interp_l = []
@@ -115,8 +117,11 @@ class Alligner():
         leadtimes_l = []
         for i, index in enumerate(output.Buoyindex.values): 
             """Take one forcast and matches it with one True Trjactory"""
+            #if i == 5: 
+                #break
+            #print(i)
             if i%100 == 0: 
-                print(f"{i} in month {month}")
+                print(fr"{i}\{len(output.Buoyindex.values)} in month {month}")
             id = dFADs_s.BuoyName[i]
             row =  ds_short_t.query("BuoyName == @id").reset_index(drop = True)
             row = row.iloc[0]
@@ -125,10 +130,13 @@ class Alligner():
             mask = masklarge[i,:] 
             ## added for updated times 
             forcast_time_start = (output.time[i,:].values[mask])  ## converts to seconds since model has started. 
+           # print(forcast_time_start[0])
             forcast_time_start = forcast_time_start - np.datetime64(startdate)
-            forcast_time_start = forcast_time_start/np.timedelta64(1, "ns")/1e9 ## converts it to seconds 
-            #print(forcast_time_start/3600)
-            #print(dFAD_times/3600)
+            #print(forcast_time_start[0])
+            forcast_time_start = forcast_time_start/np.timedelta64(1, "ns")/1e9
+            #print(forcast_time_start[0]) ## converts it to seconds 
+            # print(forcast_time_start/3600)
+            # print(dFAD_times/3600)
             dFAD_times_s = dFAD_times[dFAD_times > forcast_time_start[0]]  ## filters true dFADs locations to be inrange with dFAD forcasts 
             dFAD_times_s = dFAD_times_s[dFAD_times_s < forcast_time_start[-1]] 
 
@@ -141,7 +149,8 @@ class Alligner():
             lat_interp = np.insert(lat_interp, 0,np.nan) ## add nan at start of forcast for this is where the initial point is. 
             lon_interp = np.insert(lon_interp, 0,np.nan) ## need to add this into the true data 
 
-            if len(dFAD_times_s) == 0: 
+            if len(dFAD_times_s) == 0:
+                print(f"data is empty {month}") 
                 emptydata += 1
                 continue
             if row["geometry"] == None:
@@ -160,6 +169,7 @@ class Alligner():
             Times = Times[idx_start-1:idx_end+1]
             leadtimes = (Times - Times[0])
             leadtimes = leadtimes.total_seconds()/3600
+            #print(leadtimes)
             # print(leadtimes)
 
             Buoylist = [id]*len(lat_true) 
@@ -167,16 +177,18 @@ class Alligner():
                                     "lat_true": lat_true,"lon_true":lon_true, ""
                                     "lat_forcast": lat_interp, "lon_forcast": lon_interp, 
                                     "leadtime": leadtimes })
-            BuoyID_l.extend (Buoylist)
+            BuoyID_l.extend(Buoylist)
             Time_l.extend(Times)
             lat_true_l.extend(lat_true)
             lon_true_l.extend(lon_true)
             lat_interp_l.extend(lat_interp)
             lon_interp_l.extend(lon_interp)
             leadtimes_l.extend(leadtimes)
-
+            #print(leadtimes_l)
         self.dssave =  pd.DataFrame({"BuoyID": BuoyID_l,"Time": Time_l, "lat_true": lat_true_l, "lon_true": lon_true_l, "lat_forcast":lat_interp_l,
                                       "lon_forcast":lon_interp_l, "leadtime":leadtimes_l})
+        ##print(self.dssave)
+        print(f"{month} has empty data: {emptydata}")
         self.dssave.to_csv(rf"output\Forecast{[month]}.csv")
 
 def main(startdate, enddate, monthindex):
@@ -190,7 +202,7 @@ if __name__ == "__main__" :
     if True: 
         """Runs interpoliations onto the true data in Parallel estimated time ~ 20min/year of forecasts"""
         import multiprocessing as mp
-        monthrange = pd.date_range("2024-01-01", "2025-01-01", freq="MS")
+        monthrange = pd.date_range("2022-01-01", "2023-01-01", freq="MS")
 
         # Build tuples of (start, end, index)
         inputs = list(zip(
@@ -205,7 +217,7 @@ if __name__ == "__main__" :
     if False: 
         ds = gpd.read_parquet(r"..\Data\Mapped_SAT_MI_Cleanedspeeds.parquet")
 
-        monthrange = pd.date_range("2024-01-1","2025-01-1", freq= "MS")
+        monthrange = pd.date_range("2023-01-1","2024-01-1", freq= "MS")
         for month in range(len(monthrange)-1):
             print(f"Starting on month {monthrange[month]}")
             engine = Alligner(ds)
@@ -213,7 +225,6 @@ if __name__ == "__main__" :
     if False: 
         ds = gpd.read_parquet(r"..\Data\Mapped_SAT_MI_Cleanedspeeds.parquet")
         engine = Alligner(ds)
-        engine.allign_data_MultipleDays(rf"Dynamical Model\TestParticleFile.zarr", #"Dynamical Model\TestParticleFile.zarr"
-                                         pd.to_datetime("2024-03-1"), pd.to_datetime("2024-4-1"), 
+        engine.allign_data_MultipleDays(rf"output\TestParticleFile2.zarr", #"Dynamical Model\TestParticleFile.zarr"
+                                         pd.to_datetime("2023-03-1"), pd.to_datetime("2023-4-1"), 
                                          pd.Timedelta(days=7), 22)
-        
