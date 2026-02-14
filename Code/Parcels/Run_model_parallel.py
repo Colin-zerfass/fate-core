@@ -1,3 +1,9 @@
+r"""from DIR of "Code\parcels" run this file. 
+to change from cmems to oscar
+1) remove depth = 15 when sellecting the velocity field 
+2) add Transpose = True when loading the field into the velocity field. OSCAR has coords of (lon, lat)... 
+"""
+
 import parcels
 import geopandas as gpd 
 import os
@@ -16,13 +22,12 @@ from functions.funcs import *
 
 
 def Run_model(startmonth, endmonth, monthindex):
-    fname = r"..\Data\OSCAR_2024.nc"
+    fname = r"..\Data\cmems.nc"
     field = xr.open_dataset(fname )
     #field = field.rename({"longitude":"lon", "latitude": "lat"}) ## if using cmems
 
     ##Loads the dFADs 
     ds = gpd.read_parquet(r"..\Data\Mapped_SAT_MI_Cleanedspeeds.parquet")
-    monthrange = pd.date_range("2024-01-1","2025-01-1", freq= "MS")
 
     daterange = pd.date_range(startmonth, endmonth)
     dssave = pd.DataFrame()
@@ -66,13 +71,13 @@ def Run_model(startmonth, endmonth, monthindex):
 
         ## Make the model... 
         filenames = {"uo": fname, "vo": fname}
-        variables  = {"U": "u", "V": "v"}
-        dimensions = {"lat": "lat", "lon": "lon"}
-        field_t = field.sel(time = target_date, method = "nearest").drop_vars("time") ## IF CMEMS add depth = 15 argument 
+        variables  = {"U": "uo", "V": "vo"} ## if CMEMS {"U": "uo", "V": "vo"}. OSCAR {"U":"u", "V": "v"}
+        dimensions = {"lat": "latitude", "lon": "longitude"}
+        field_t = field.sel(time = target_date, depth = 15, method = "nearest").drop_vars("time") ## IF CMEMS add depth = 15 argument 
         runtime = pd.Timedelta(days =8)
 
         # fieldsetperm = parcels.FieldSet.from_netcdf(filenames, variables, dimensions)
-        fieldset  = parcels.FieldSet.from_xarray_dataset(field_t, variables, dimensions, allow_time_extrapolation= True, transpose = True) 
+        fieldset  = parcels.FieldSet.from_xarray_dataset(field_t, variables, dimensions, allow_time_extrapolation= True) # if OSCAR add transpose = True 
         fieldset.add_constant("halo_west", fieldset.U.grid.lon[0])
         fieldset.add_constant("halo_east", fieldset.U.grid.lon[-1])
         fieldset.add_constant("halo_north", fieldset.U.grid.lat[-1])
@@ -181,7 +186,7 @@ if __name__ == "__main__":
 
     """Method of running the model on given number of threads, one model runs on each thread sectioned by the monthrange above"""
     
-    monthrange = pd.date_range("2024-01-01", "2025-01-01", freq="MS")
+    monthrange = pd.date_range("2023-01-01", "2024-01-01", freq="MS")
 
     # Build tuples of (start, end, index)
     inputs = list(zip(

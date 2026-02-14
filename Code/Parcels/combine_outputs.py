@@ -2,10 +2,14 @@ import pandas as pd
 
 import os
 import pandas as pd
+import sys
 
+#FileName = sys.argv[1]
+FileName = "cmems_static2023"
+output_csv   = rf"./saved_output/{FileName}.csv"
 # --- SETTINGS ---
 input_folder = r"./output"      # folder containing your csv files
-output_csv   = r"./saved_output/cmems_dynamicalv1.csv"    # final combined file name
+#output_csv   = r"./saved_output/cmems_dynamical2023.csv"    # final combined file name
 
 # --- COLLECT ALL CSV FILE PATHS ---
 csv_files = [os.path.join(input_folder, f)

@@ -154,7 +154,7 @@ for month in range(len(monthrange)-1):
             row=  ds_short_ts.iloc[i]
             Times= row["TimeStamp"]
             starttime = Times[0]
-            dFAD_leadtime = (Times - starttime).astype("int64")/1e9 ## convets leadtime to seconds
+            dFAD_leadtime = (Times - starttime).total_seconds()#.astype("int64")/1e9 ## convets leadtime to seconds
             mask = masklarge[i,:] 
             leadtimes = output.age[i,:].values[mask]*3600 ## converts to seconds also. 
             lats = output.lat[i,:].values[mask]

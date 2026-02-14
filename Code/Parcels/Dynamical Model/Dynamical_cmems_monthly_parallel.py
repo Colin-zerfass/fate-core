@@ -134,7 +134,7 @@ if __name__ == "__main__":
 
     """Method of running the model on given number of threads, one model runs on each thread sectioned by the monthrange above"""
     
-    monthrange = pd.date_range("2024-01-01", "2025-01-01", freq="MS")
+    monthrange = pd.date_range("2022-01-01", "2023-01-01", freq="MS")
 
     # Build tuples of (start, end, index)
     inputs = list(zip(
