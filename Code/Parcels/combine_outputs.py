@@ -4,8 +4,8 @@ import os
 import pandas as pd
 import sys
 
-#FileName = sys.argv[1]
-FileName = "cmems_static2023"
+FileName = sys.argv[1]
+
 output_csv   = rf"./saved_output/{FileName}.csv"
 # --- SETTINGS ---
 input_folder = r"./output"      # folder containing your csv files

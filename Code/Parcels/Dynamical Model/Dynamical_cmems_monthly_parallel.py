@@ -129,12 +129,18 @@ def Run_model(startdate, enddate, monthindex):
 
 
 ## run models
-import multiprocessing as mp
 if __name__ == "__main__":  
+    import multiprocessing as mp
+    import sys 
 
     """Method of running the model on given number of threads, one model runs on each thread sectioned by the monthrange above"""
     
-    monthrange = pd.date_range("2022-01-01", "2023-01-01", freq="MS")
+    totalstartdate = sys.argv[1]
+    print(totalstartdate)
+    totalenddate = sys.argv[2]
+    print(totalenddate)
+            
+    monthrange = pd.date_range(totalstartdate, totalenddate, freq="MS")
 
     # Build tuples of (start, end, index)
     inputs = list(zip(

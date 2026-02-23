@@ -23,6 +23,8 @@ def RandTrajectories(ds, amount):
 def OneTrajectory(ds,index, ax, window:int = None , itime:int =None, **kwargs):
     """Plots the Trajectory at index, returns the ax """
     line = ds.at[index,'geometry']
+    if line is None: 
+        return ax
     x,y = line.xy
     if window !=None: ## adds padding to end of the array for sliding window
         x= np.array(x)

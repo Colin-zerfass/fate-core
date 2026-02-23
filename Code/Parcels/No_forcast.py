@@ -21,7 +21,7 @@ field = xr.open_dataset(fname )
 
 ##Loads the dFADs 
 ds = gpd.read_parquet(r"..\Data\Mapped_SAT_MI_Cleanedspeeds.parquet")
-monthrange = pd.date_range("2024-01-1","2025-01-1", freq= "MS")
+monthrange = pd.date_range("2023-01-1","2024-01-1", freq= "MS")
 for month in range(len(monthrange)-1):
     daterange = pd.date_range(monthrange[month], monthrange[month+1])
     dssave = pd.DataFrame()

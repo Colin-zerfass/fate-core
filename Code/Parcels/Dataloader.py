@@ -2,6 +2,9 @@
 to be ran after running the dynamical model. goes from .zarr to .csv files with forecasts alligned to true data
 A) "Dataloader": loads dFAD data to be used in Ocean Parcels 
 B) "Alligner" : Alligns forecast data with the True dFAD data 
+
+ToRun: 
+python Dataloader.py <startdate> <enddate>
 """
 
 
@@ -202,7 +205,14 @@ if __name__ == "__main__" :
     if True: 
         """Runs interpoliations onto the true data in Parallel estimated time ~ 20min/year of forecasts"""
         import multiprocessing as mp
-        monthrange = pd.date_range("2022-01-01", "2023-01-01", freq="MS")
+        import sys
+
+        totalstartdate = sys.argv[1]
+        print(totalstartdate)
+        totalenddate = sys.argv[2]
+        print(totalenddate)
+                
+        monthrange = pd.date_range(totalstartdate, totalenddate, freq="MS")
 
         # Build tuples of (start, end, index)
         inputs = list(zip(
