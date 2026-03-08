@@ -32,6 +32,18 @@ def Run_model(startdate, enddate, monthindex):
     #loading the data
     fname = r"..\..\Data\cmems.nc" ### Change the field to cmems
     field = xr.open_dataset(fname )
+    winds = xr.open_dataset("..\..\Data\ERA5_10m_winds.nc")
+    windsr = winds.rename({'lat': 'latitude' ,'lon' : 'longitude'})
+    windsi = windsr.interp_like(field)
+
+    ## Y = m*Uo + n*W
+    m = 7.73709253e-01+1.62143540e-01j
+    n = 7.85629581e-03+1.45730160e-03j
+    Uo = field.uo +field.vo*1j
+    W = windsi.uo +windsi.vo*1j
+    Y = m*Uo + n*W
+    field['uo'] = Y.real
+    field['vo'] = Y.imag
     ds = gpd.read_parquet(r"..\..\Data\Mapped_SAT_MI_Cleanedspeeds.parquet")
 
     Monthdaterange = pd.date_range(startdate, enddate, freq= "D")
