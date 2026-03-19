@@ -24,26 +24,40 @@ import pandas as pd
 import numpy as np 
 import shapely as sp 
 import sys 
+import tomllib
 
 
-def Run_model(startdate, enddate, monthindex):
+def Run_model(startdate, enddate, monthindex, configfile):
      
     """Wrapper function to run cmems dynamical forecasts"""
+
+    with open(configfile, 'rb') as f:
+        config = tomllib.load(f)
+        
+    ## set model Params from config file
+    persistence = config['persistence']
+    persistencewindow = config['persistence_window']
+    usewinds= config['wind']
+    filename = config['currents_file']
+    depth = config['depth']
+
     #loading the data
     fname = r"..\..\Data\cmems.nc" ### Change the field to cmems
     field = xr.open_dataset(fname )
-    winds = xr.open_dataset("..\..\Data\ERA5_10m_winds.nc")
-    windsr = winds.rename({'lat': 'latitude' ,'lon' : 'longitude'})
-    windsi = windsr.interp_like(field)
+    if usewinds == True:
+        winds = xr.open_dataset("..\..\Data\ERA5_10m_winds.nc") ## adding winds 
+        windsr = winds.rename({'lat': 'latitude' ,'lon' : 'longitude'})
+        windsi = windsr.interp_like(field)
 
-    ## Y = m*Uo + n*W
-    m = 7.73709253e-01+1.62143540e-01j
-    n = 7.85629581e-03+1.45730160e-03j
-    Uo = field.uo +field.vo*1j
-    W = windsi.uo +windsi.vo*1j
-    Y = m*Uo + n*W
-    field['uo'] = Y.real
-    field['vo'] = Y.imag
+       ## Y = m*Uo + n*W
+        m = 7.73709253e-01+1.62143540e-01j
+        n = 7.85629581e-03+1.45730160e-03j
+        Uo = field.uo +field.vo*1j
+        W = windsi.uo +windsi.vo*1j
+        Y = m*Uo + n*W
+        field['uo'] = Y.real
+        field['vo'] = Y.imag
+
     ds = gpd.read_parquet(r"..\..\Data\Mapped_SAT_MI_Cleanedspeeds.parquet")
 
     Monthdaterange = pd.date_range(startdate, enddate, freq= "D")
@@ -91,7 +105,7 @@ def Run_model(startdate, enddate, monthindex):
     variables  = {"U": "uo", "V": "vo"}
     dimensions = {"lat": "latitude", "lon": "longitude", "time" : "time"}
     ## fix this and make it a non static field
-    field_t = field.sel(time = slice(startdate, enddate + pd.Timedelta(days= 7)), depth = 15.81007) ## IF CMEMS add depth = 15 argument
+    field_t = field.sel(time = slice(startdate, enddate + pd.Timedelta(days= 7)), depth = depth) ## IF CMEMS add depth = 15 argument
     runtime = enddate - startdate + pd.Timedelta(days = 7)
 
     # fieldsetperm = parcels.FieldSet.from_netcdf(filenames, variables, dimensions)
@@ -144,12 +158,18 @@ def Run_model(startdate, enddate, monthindex):
 if __name__ == "__main__":  
     import multiprocessing as mp
     import sys 
-
-    """Method of running the model on given number of threads, one model runs on each thread sectioned by the monthrange above"""
+    import itertools
     
-    totalstartdate = sys.argv[1]
+    """Method of running the model on given number of threads, one model runs on each thread sectioned by the monthrange above"""
+
+
+    config_name = sys.argv[1]
+    with open(config_name, 'rb') as f:
+        config = tomllib.load(f)
+
+    totalstartdate = config['startdate']
     print(totalstartdate)
-    totalenddate = sys.argv[2]
+    totalenddate = config['enddate']
     print(totalenddate)
             
     monthrange = pd.date_range(totalstartdate, totalenddate, freq="MS")
@@ -158,7 +178,8 @@ if __name__ == "__main__":
     inputs = list(zip(
         monthrange[:-1],
         monthrange[1:],
-        range(len(monthrange)-1)
+        range(len(monthrange)-1), 
+        itertools.repeat(config_name, len(monthrange)-1),
     ))
 
     with mp.Pool(processes=6) as pool:
