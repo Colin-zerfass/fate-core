@@ -89,7 +89,7 @@ def Kingman_obj():
 def Palmyra_plot(ax):
     """"Plots Palmyra onto the graph Returns as """
     Palmyra = Palmyra_obj()
-    ax.scatter(Palmyra.x,Palmyra.y, marker  = "o", color = "darkgreen", label = "Palmyra", s= 10)
+    ax.scatter(Palmyra.x,Palmyra.y, marker  = "*", color = "r", label = "Palmyra", s= 20)
     return ax
 
 def Kingmon_plt(ax):
@@ -120,10 +120,10 @@ def Add_bathymetry(fig,ax, filepath = r"Data\bath.nc", colorbar = True):
     bath_cmap.set_over('green')
     negative_levels = np.linspace(-10000, 0, 11)
     cbr = ax.contourf( bath["lon"], bath["lat"], bath["elevation"], 
-                    linestyle = "-", cmap = bath_cmap, alpha = 0.8, levels = negative_levels, extend = "max")
+                    cmap = bath_cmap, alpha = 0.8, levels = negative_levels, extend = "max")
     if colorbar == True:
-        fig.colorbar(cbr)
-    cbr.set_label("m/s")
+        fig.colorbar(cbr, label = 'Bathymetry [m]')
+    #cbr.set_label("m")
     return fig, ax
 
 def NWR_exteriors(data):

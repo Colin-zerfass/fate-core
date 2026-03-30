@@ -352,15 +352,15 @@ def Add_Delta_speeds(ds = gpd.GeoDataFrame):
     ds["delta_speed"] = delta_speeds
     return ds
 
-def Add_interp_currents(data,vo,uo, cmems = True):
+def Add_interp_currents(data,vo,uo, model = "cmems"):
     """depth = False is the tag for oscar"""
     from scipy.interpolate import interpn 
     def closest_point(data, lat, lon, depth, time):
         nearest = data.sel(lat = lat, lon = lon,time = time, method = "nearest") ## add depth back if it mapping onto cmems and change lat -> latitude, lon -> longitude
         return nearest
     
-    def second_time(time,nearest ):
-        delta = pd.Timedelta(days = 1)
+    def second_time(time,nearest, timedelta = pd.Timedelta(days = 1) ):
+        delta = timedelta
         if time < nearest.time.to_numpy():
             newtime = time -delta
             dayfrac = (time.hour + (time.minute)/60)/24
@@ -372,13 +372,13 @@ def Add_interp_currents(data,vo,uo, cmems = True):
             newtime = time
             dayfrac = 1
         return newtime, dayfrac
-    
+    timedelta  = vo.time[1] - vo.time[0]
     mapped_vs = []
     mapped_us = []
-    y = vo.latitude.to_numpy()
-    x = vo.longitude.to_numpy()
+    y = vo.lat.to_numpy()
+    x = vo.lon.to_numpy()
     cords = (y,x)
-    if cmems == False:
+    if model == "oscar":
         y = vo.lat.to_numpy()
         x = vo.lon.to_numpy() -360
         cords = (x,y)
@@ -396,18 +396,18 @@ def Add_interp_currents(data,vo,uo, cmems = True):
             lat = point.y
             lon = point.x
             poi = (lat,lon)
-            if cmems == False:
+            if model == "oscar":
                 poi = (lon,lat)
             ##getting the nearest two points
             ##First V
-            if cmems == True:   
+            if model == "cmems":   
                 valuest1 = vo.sel(depth = 15,time = time, method="nearest").to_numpy()
             else:
                 valuest1 = vo.sel(time = time, method="nearest").to_numpy()
             p1 = interpn(cords, valuest1,poi)
             nearest = closest_point(vo,lat,lon,15,time)
-            newtime, dayfrac = second_time(time,nearest)
-            if cmems == True:
+            newtime, dayfrac = second_time(time,nearest, timedelta= timedelta)
+            if model == "cmems":
                 valuest2 = vo.sel(depth = 15,time = newtime, method="nearest").to_numpy()
             else: 
                 valuest2 = vo.sel(time = newtime, method="nearest").to_numpy()
@@ -420,14 +420,14 @@ def Add_interp_currents(data,vo,uo, cmems = True):
             listmapped_v = npmapped_v.tolist()
 
             ##Then U
-            if cmems == True: 
+            if model == "cmems": 
                 valuest1 = uo.sel(depth = 15,time = time, method="nearest").to_numpy()
             else: 
                 valuest1 = uo.sel(time = time, method="nearest").to_numpy()
             p1 = interpn(cords, valuest1,poi)
             nearest = closest_point(uo,lat,lon,15,time)
-            newtime, dayfrac = second_time(time,nearest)
-            if cmems == True:
+            newtime, dayfrac = second_time(time,nearest, timedelta= timedelta)
+            if model == "cmems":
                 valuest2 = uo.sel(depth = 15,time = newtime, method="nearest").to_numpy()
             else: 
                 valuest2 = uo.sel(time = newtime, method="nearest").to_numpy()
@@ -444,8 +444,8 @@ def Add_interp_currents(data,vo,uo, cmems = True):
         mapped_vs.append(listmapped_v)
         mapped_us.append(listmapped_u)
     
-    data["mapped_v_oscar"] = mapped_vs
-    data["mapped_u_oscar"] = mapped_us
+    data[f"mapped_v_{model}"] = mapped_vs
+    data[f"mapped_u_{model}"] = mapped_us
     return data
 
 def Rolling_mean(x = list,windowsize = int):
@@ -917,3 +917,35 @@ def True_dFAD_data(ds, buoyID):
     Truedata.DateTime = pd.to_datetime(Truedata.DateTime)
     return Truedata
 
+def interpolate_dFADs(group, dt = pd.Timedelta(hours= 1), 
+                     columns = ['lat', 'lon']):
+    """Method of interpolating from as unstacked dataframe (longlist). to be used on dFAD data
+    For Forecast method of interpolating us functions.output.interpolate_output() 
+    Used in .groupby(['BouyID', 'StartTime']).apply()
+    Columns = Name of the Columns to interp
+    dt: is the steady interval to be interpolated onto. 
+    """
+    
+    lead_col = 'TimeStamp'
+
+    g = group.copy()
+    starttime = g[lead_col].min()
+    endtime = g[lead_col].max()
+    times = pd.date_range(start= starttime, end =endtime, freq= dt)
+    g = g.set_index(lead_col).sort_index()
+
+    # If there are duplicate leadtime values, remove them before interpolating
+    if g.index.duplicated().any():
+        g = g[~g.index.duplicated(keep='first')]
+    
+    new_index = pd.Index(times, name=lead_col)
+
+    # include existing points so interpolation has anchors, then interpolate
+    combined_index = new_index.union(g.index)
+    g = g.reindex(combined_index).sort_index()
+    cols = columns
+    g = g[cols].interpolate(method='linear', limit_direction='both')
+
+    # keep only the rows at the bin locations
+    out = g.reindex(new_index).reset_index()
+    return out
