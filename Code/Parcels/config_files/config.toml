@@ -1,0 +1,11 @@
+
+
+startdate = '2024-01-01'
+enddate = '2025-01-01'
+parallel_cores = 6
+
+currents_file = 'cmems'  #options [cmems, oscar]
+persistence = false
+persistence_window = 2
+depth = 5.078224
+wind = false

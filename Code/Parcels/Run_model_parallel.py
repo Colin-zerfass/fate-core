@@ -3,6 +3,8 @@ to change from cmems to oscar
 1) remove depth = 15 when sellecting the velocity field 
 2) add Transpose = True when loading the field into the velocity field. OSCAR has coords of (lon, lat)... 
 3) Change variable from uo, vo to u,v
+
+fix drop var= time in line 169
 """
 
 import parcels
@@ -17,6 +19,7 @@ import zarr
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.join(current_dir, '..')
 sys.path.append(parent_dir)
+import tomllib
 
 from functions.funcs import *
 
@@ -56,29 +59,73 @@ def persistence_AdvectionRK4(particle, fieldset, time):  # pragma: no cover
     particle_dlat += persistence_dlat*persistence_frac + advection_dlat*(1- persistence_frac)
 
 
-def Run_model(startmonth, endmonth, monthindex, filename = "cmems", persistance = False, persistancewindow = 2):
-    ## set model Params
-    persistance = True
-    persistancewindow = 2
+def Run_model(startmonth:pd.Timestamp, endmonth:pd.Timestamp, monthindex:int, configfile:str):
+    #load config file
+    print(configfile)
+    with open(configfile, 'rb') as f:
+        config = tomllib.load(f)
 
-    
+    ## set model Params from config file
+    persistence = config['persistence']
+    persistencewindow = config['persistence_window']
+    usewinds= config['wind']
+    print(usewinds)
+    filename = config['currents_file']
+    depth = config['depth']
+
+    ##_______________________
+    # load Currents and Winds 
+    ##_______________________
+
+    winds = xr.open_dataset(r"..\Data\ERA5_10m_winds.nc")
+    winds = winds.rename({"lat" :'latitude', 'lon': 'longitude'})
+    winds = winds.sortby('latitude')
+
     if filename == "cmems":
-        fname = rf"..\Data\{filename}.nc"
-        print("loaded cmems data")
+        cmems = xr.open_dataset(rf"..\Data\cmems.nc")
+        if usewinds == True:
+            windsi = winds.interp_like(cmems)
+            m = 7.73709253e-01+1.62143540e-01j
+            n = 7.85629581e-03+1.45730160e-03j
+            Uo = cmems.uo +cmems.vo*1j
+            W = windsi.uo +windsi.vo*1j
+            Y = m*Uo + n*W
+            cmems['uo'] = Y.real
+            cmems['vo'] = Y.imag
+        field = cmems.sel(depth = depth, method = "nearest")
+
     if filename == "OSCAR":
-        fname = rf"..\Data\OSCAR_combined_2021_2025v2.nc"
-        print("loaded OSCAR")
-    field = xr.open_dataset(fname)
-    #field = field.rename({"longitude":"lon", "latitude": "lat"}) ## if using cmems
+        oscar = xr.open_dataset(rf"..\Data\OSCAR_combined_2021_2025v2.nc")
+        oscar = oscar.rename({'lon':'longitude', 'lat':'latitude', 'u' : 'uo', 'v':'vo' })
+        oscar = oscar.set_index(longitude='longitude', latitude='latitude')
+        oscar = oscar.transpose('time' ,'latitude', 'longitude')
+        if usewinds == True:
+            print('using winds')
+            windsi = winds.interp_like(oscar)
+            m = 9.20652565e-01+1.94924156e-02j
+            n = 1.05991333e-02+7.39510759e-03j
+            Uo = oscar.uo +oscar.vo*1j
+            W = windsi.uo +windsi.vo*1j
+            Y = m*Uo + n*W
+            oscar['uo'] = Y.real
+            oscar['vo'] = Y.imag
+        field = oscar
 
-    ##Loads the dFADs 
+    ## WARNING climatology OUTdated assing fname to field like OSCAR and CMEMS above
+    if filename == "climatological": 
+        ## WARNING The dates in climatological Dataset are from 2024-2025, need to change dates if running outside of those dates. 
+        fname = rf"..\Data\drifter_climatology_daily_values.nc"
+
     ds = gpd.read_parquet(r"..\Data\Mapped_SAT_MI_Cleanedspeeds.parquet")
-
     daterange = pd.date_range(startmonth, endmonth)
     dssave = pd.DataFrame()
     dssave = pd.DataFrame(columns = ["BuoyID","Time", "lat_true", "lon_true", "lat_forcast", "lon_forcast", "leadtime"])
     for day in daterange:
         target_date = day ## picks dFAD locations one day after this date 
+
+    ##_______________
+    ##Loads the dFADs 
+    ##_______________
 
         ds_active = querry_date(ds, date = target_date) ## All of the active dFADs at this time 
         ds_active = ds_active.reset_index()
@@ -93,8 +140,9 @@ def Run_model(startmonth, endmonth, monthindex, filename = "cmems", persistance 
         ds_locations["lon"] =lon
         ds_locations["BuoyName"] = ids
         ds_locations.TimeStamp = pd.to_datetime(ds_locations.TimeStamp)
-        ds_locations["x_speed_prev"] = (ds_locations.groupby("BuoyName")["x_speed"].transform(lambda x: x.rolling(window=persistancewindow, min_periods=1).mean())) ## Calcuates persistence based pervious window
-        ds_locations["y_speed_prev"] = (ds_locations.groupby("BuoyName")["y_speed"].transform(lambda x: x.rolling(window=persistancewindow, min_periods=1).mean()))
+        if persistence == True: 
+            ds_locations["x_speed_prev"] = (ds_locations.groupby("BuoyName")["x_speed"].transform(lambda x: x.rolling(window=persistencewindow, min_periods=1).mean())) ## Calcuates persistence based pervious window
+            ds_locations["y_speed_prev"] = (ds_locations.groupby("BuoyName")["y_speed"].transform(lambda x: x.rolling(window=persistencewindow, min_periods=1).mean()))
 
         ##Filter Timestep by certain threshhold to get locations of FADS within closes  
         ## UPDATE:This might be better to interp these onto the specific time. 
@@ -116,25 +164,18 @@ def Run_model(startmonth, endmonth, monthindex, filename = "cmems", persistance 
             continue
         dFADs = dFADs.reset_index()
 
-        ## Make the model... 
-        filenames = {"uo": fname, "vo": fname}
-        if filename == 'cmems':
-            variables  = {"U": "uo", "V": "vo"} 
-            dimensions = {"lat": "latitude", "lon": "longitude"}
-        if filename == 'OSCAR':
-            variables  = {"U": "u", "V": "v"}  ## if CMEMS {"U": "uo", "V": "vo"}. OSCAR {"U":"u", "V": "v"}
-            dimensions = {"lat": "lat", "lon": "lon"}
-        if filename == 'cmems':
-            field_t = field.sel(time = target_date, depth = 15, method = "nearest").drop_vars("time") ## IF CMEMS add depth = 15 argument 
-        if filename == 'OSCAR':
-            field_t = field.sel(time = target_date, method = "nearest").drop_vars("time")
-        runtime = pd.Timedelta(days =8)
+    ##_______________
+    ##Make the Model
+    ##_______________
 
-        # fieldsetperm = parcels.FieldSet.from_netcdf(filenames, variables, dimensions)
-        if filename == 'cmems':
-            fieldset  = parcels.FieldSet.from_xarray_dataset(field_t, variables, dimensions, allow_time_extrapolation= True)
-        if filename == 'OSCAR':
-            fieldset  = parcels.FieldSet.from_xarray_dataset(field_t, variables, dimensions, allow_time_extrapolation= True, transpose = True) # if OSCAR add transpose = True 
+        variables  = {"U": "uo", "V": "vo"}
+        dimensions = {"lat": "latitude", "lon": "longitude"}
+        if config['currents_file'] == 'cmems':
+            field_t = field.sel(time = target_date, method = "nearest").drop_vars('time')
+        if config['currents_file'] == 'OSCAR':
+            field_t = field.sel(time = target_date, method = "nearest")
+        fieldset  = parcels.FieldSet.from_xarray_dataset(field_t, variables, dimensions, allow_time_extrapolation= True) 
+
         fieldset.add_constant("halo_west", fieldset.U.grid.lon[0])
         fieldset.add_constant("halo_east", fieldset.U.grid.lon[-1])
         fieldset.add_constant("halo_north", fieldset.U.grid.lat[-1])
@@ -155,29 +196,40 @@ def Run_model(startmonth, endmonth, monthindex, filename = "cmems", persistance 
 
         Particles = parcels.ScipyParticle.add_variable("age", initial = 0) 
         Particles = Particles.add_variable("Buoyindex", to_write = 'once')
-        Particles = Particles.add_variable("ui", to_write = 'once') ## units of degree/second
-        Particles = Particles.add_variable("vi", to_write = 'once') ## units od degree/second
-        Particles = Particles.add_variable("tau",initial = 0.83*24,to_write = 'once') ## units of hours
-        
-        pset = parcels.ParticleSet.from_list(fieldset, pclass = Particles , lon = dFADs.lon.to_list(), 
-                                            lat = dFADs.lat.to_list() , time = dFADs.timedelta, Buoyindex = dFADs.BuoyName.index, ui = dFADs.x_speed_prev/1000/111, vi = dFADs.y_speed_prev/1000/111) 
+    
+    ##__________
+    ## Run Model
+    ##__________
 
-        output_memorystore = zarr.storage.MemoryStore()
-        output_file = pset.ParticleFile(name = output_memorystore, outputdt =timedelta(hours= 1))
+        if persistence == True:
+            Particles = Particles.add_variable("ui", to_write = 'once') ## units of degree/second
+            Particles = Particles.add_variable("vi", to_write = 'once') ## units od degree/second
+            Particles = Particles.add_variable("tau",initial = 0.83*24,to_write = 'once') ## units of hours
+            pset = parcels.ParticleSet.from_list(fieldset, pclass = Particles , lon = dFADs.lon.to_list(), 
+                                            lat = dFADs.lat.to_list() , time = dFADs.timedelta, Buoyindex = dFADs.BuoyName.index, 
+                                            ui = dFADs.x_speed_prev/1000/111, vi = dFADs.y_speed_prev/1000/111) 
+            output_memorystore = zarr.storage.MemoryStore()
+            output_file = pset.ParticleFile(name = output_memorystore, outputdt =timedelta(hours= 1))
 
-        if persistance == True:
             pset.execute([persistence_AdvectionRK4, boundryCondition, Age], 
                             runtime = timedelta(days = 8), ##this should be 8 days 
                             dt = timedelta(minutes =5), 
                             output_file = output_file, 
                             )
-        else:
+        else: 
+            pset = parcels.ParticleSet.from_list(fieldset, pclass = Particles , lon = dFADs.lon.to_list(), 
+                                            lat = dFADs.lat.to_list() , time = dFADs.timedelta, Buoyindex = dFADs.BuoyName.index) 
+            output_memorystore = zarr.storage.MemoryStore()
+            output_file = pset.ParticleFile(name = output_memorystore, outputdt =timedelta(hours= 1))
             pset.execute([parcels.AdvectionRK4, boundryCondition, Age], 
                         runtime = timedelta(days = 8), ##this should be 8 days 
                         dt = timedelta(minutes =5), 
                         output_file = output_file, 
                         )
 
+        ##_______________
+        ## Saving to CSV
+        ##________________
 
         buoy_list = dFADs.BuoyName.tolist() 
         ds_filtered = ds_active[ds_active["BuoyName"].isin(buoy_list)].reset_index(drop = True)
@@ -220,7 +272,7 @@ def Run_model(startmonth, endmonth, monthindex, filename = "cmems", persistance 
             .drop(columns="order_index")
             .reset_index(drop=True)
         )
-
+        #Interpolating Forecast locations onto the true locations
         for i, index in enumerate(output.Buoyindex.values): 
             id = dFADs.BuoyName[index]
             row=  ds_short_ts.iloc[i]
@@ -253,20 +305,27 @@ if __name__ == "__main__":
     """Method of running the model on given number of threads, one model runs on each thread sectioned by the monthrange above"""
     import multiprocessing as mp
     import sys
-    totalstartdate = sys.argv[1]
-    totalenddate = sys.argv[2]
-    filename = sys.argv[3]
-    monthrange = pd.date_range(totalstartdate, totalenddate, freq="MS")
+    import itertools
 
+    config_name = sys.argv[1]
+    with open(config_name, 'rb') as f:
+        config = tomllib.load(f)
+    
+    totalstartdate = config['startdate']
+    totalenddate = config['enddate']
+    monthrange = pd.date_range(totalstartdate, totalenddate, freq="MS")
+    print()
     # Build tuples of (start, end, index)
     inputs = list(zip(
         monthrange[:-1],
         monthrange[1:],
-        range(len(monthrange)-1), 
-        [filename]*(len(monthrange)-1)
+        range(len(monthrange)-1),
+        itertools.repeat(config_name, len(monthrange)-1),
     ))
-    print([filename]*(len(monthrange)-1))
-    with mp.Pool(processes=12) as pool:
+    print(config_name)
+    print(config['depth'])
+    #print([filename]*(len(monthrange)-1))
+    with mp.Pool(processes=config['parallel_cores']) as pool:
         results = pool.starmap(Run_model, inputs)
 
     print("Results:", results)

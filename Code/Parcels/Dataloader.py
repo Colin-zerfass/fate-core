@@ -221,7 +221,7 @@ if __name__ == "__main__" :
             range(len(monthrange)-1)
         ))
 
-        with mp.Pool(processes=12) as pool:
+        with mp.Pool(processes=6) as pool:
             results = pool.starmap(main, inputs)
 
     if False: 
