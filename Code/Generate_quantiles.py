@@ -12,7 +12,7 @@ import xarray as xr
 ## True dFAD data 
 ds = gpd.read_parquet(r"Data\MappedOSCAR_SAT_MI_Cleanedspeeds.parquet") 
 
-fc = pd.read_csv("Parcels/saved_output/cmems_static2024.csv")
+fc = pd.read_csv("Parcels/saved_output/Autocorrelation_intial_speed_dif_OSCAR_CMEMS_wind_2022_2025.csv")
 
 
 
@@ -132,7 +132,7 @@ def quantile_regression(data, qstep = 0.1, timestep =4):
 
 output = quantile_regression(merged)
 
-output.to_netcdf(r"Data\regression_quantiles_leadtimes.nc")
+output.to_netcdf(r"Data\regression_quantiles_leadtimes_2022_2024.nc")
 
 
 

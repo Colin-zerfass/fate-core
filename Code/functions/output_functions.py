@@ -62,3 +62,71 @@ def calc_skillscore(dslist):
         dsi['skillscore'] = dsi.skillscore.clip(lower = 0)
         dslist[i] = dsi
     return dslist[0] if singleinput else dslist
+
+def merge_forecast_true(fc, longlist):
+    """Combines Forecast data with the true dFAD data merging them into one data frame. """
+    merged = pd.merge_asof(
+    fc.sort_values('Time'),
+    longlist.sort_values('Time'),
+    on='Time',
+    by='BuoyID',
+    tolerance=pd.Timedelta(minutes=1),
+    direction='nearest'
+    )
+    return merged
+
+def calc_projection_initial_angle(merged, sufix = None):
+    """Must be used after merge_forecast_true"""
+    projection = "projection"
+    angle = "angle"
+    u = "u_mapped"
+    v = "v_mapped"
+    if sufix is not None:
+        projection +=sufix
+        angle +=sufix
+        u += sufix
+        v+= sufix 
+    merged[projection] = (merged.y_speed * merged[v])+ (merged.x_speed * merged[u])
+    merged[projection]  = merged[projection]/(merged.x_speed**2 +merged.y_speed**2 )**(1/2)
+    merged[angle] = merged[projection]/(merged[u]**2 +merged[v]**2 )**(1/2)
+    merged[angle] = np.arccos(merged[angle])*180/np.pi
+    merged = merged.sort_values("leadtime")
+    merged["initial_"+angle] =  merged.groupby(["BuoyID", "starttime"],  observed=False)[angle].transform("first")
+    merged["initial_"+projection] = merged.groupby(["BuoyID", "starttime"],  observed=False)[projection].transform("first")
+    return merged
+
+def calc_intial_speed_dif(merged, sufix= None):
+    """Must be used after merge_forecast_true"""
+    initial_speed_dif_mag = "initial_speed_dif_mag" 
+    speed_dif_mag = "speed_dif_mag"
+    u = "u_mapped"
+    v = "v_mapped"
+    if sufix is not None:
+        initial_speed_dif_mag +=sufix
+        speed_dif_mag +=sufix
+        u += sufix
+        v+= sufix 
+    merged[speed_dif_mag] = np.sqrt((merged.x_speed - merged[u])**2 + (merged.y_speed - merged[v])**2)
+    merged[initial_speed_dif_mag] = merged.groupby(["BuoyID", "starttime"],  observed=False)[speed_dif_mag].transform("first")
+    return merged
+
+def calc_iniial_lat(merged):
+    """Must be used after merge_forecast_true"""
+    merged = merged.sort_values("leadtime")
+    merged["initial_lat"] = merged.groupby(["BuoyID", 'starttime'])["lat_true"].transform("first")
+    return merged
+
+def inital_current_var(merged,sufix = None):
+    """Must be used after merge_forecast_true"""
+    import xarray as xr
+    cmems = xr.open_dataset(r"Data\cmems.nc")
+    varu = cmems.sel(latitude = slice(4.5, 7.5), depth = 15.81007).uo.var(dim = ["latitude", "longitude"])
+    varv = cmems.sel(latitude = slice(4.5, 7.5), depth = 15.81007).vo.var(dim = ["latitude", "longitude"])
+    varts = pd.DataFrame({"startday": varu.time.values, "varu": varu.values, "varv": varv.values})
+    varts["var"] = varts.varu + varts.varv
+    varts['startday'] = varts.startday.dt.date
+    #merged["startday"] = merged.starttime.dt.date
+    merged["startday"] = merged.groupby(['BuoyID', 'starttime'], observed= False)['starttime'].transform('first')
+    merged['startday'] = merged['startday'].dt.date
+    mergedvar = pd.merge(merged, varts, how = "left",on =  "startday")
+    return mergedvar

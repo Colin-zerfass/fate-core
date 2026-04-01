@@ -949,3 +949,19 @@ def interpolate_dFADs(group, dt = pd.Timedelta(hours= 1),
     # keep only the rows at the bin locations
     out = g.reindex(new_index).reset_index()
     return out
+
+def generate_longlist(ds:gpd.GeoDataFrame): 
+    """Generates an unstacked version of the dFAD dataset where each gpx poing its its 
+    own row in the dataset"""
+    longlist = pd.DataFrame({})
+    longlist["Time"] = Column_to_List(ds, "TimeStamp", idlist = False)
+    longlist["lats"], longlist["lons"] = list_of_latlon(ds, False)
+    longlist["x_speed"] = Column_to_List(ds, "x_speed", idlist = False)
+    longlist["y_speed"] = Column_to_List(ds, "y_speed", idlist = False)
+    longlist["v_mapped"], longlist["BuoyID"]  =Column_to_List(ds, "mapped_v", idlist = True)
+    longlist["v_mapped_OSCAR"], longlist["BuoyID"]  =Column_to_List(ds, "mapped_v_oscar", idlist = True)
+    longlist["u_mapped"] = Column_to_List(ds, "mapped_u", idlist = False)
+    longlist["u_mapped_OSCAR"] = Column_to_List(ds, "mapped_u_oscar", idlist = False)
+    longlist.Time = pd.to_datetime(longlist.Time)
+    return longlist
+
