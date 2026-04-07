@@ -34,24 +34,26 @@ lon_max = -160.5 +360
 tmp_fname = fname.replace(".nc", "_tmp.nc")
 #ds_small = ds.sel(lat = slice(lat_min,lat_max), lon = slice(lon_min, lon_max))
 
-with xr.open_dataset(fname) as ds:
-    ds_small = ds.sel(
-        lon=slice(lon_min, lon_max),
-        lat=slice(lat_min, lat_max)
-    ).load()
+ds = xr.open_dataset(fname)
+ds_small = ds.sel(
+    lon=slice(lon_min, lon_max),
+    lat=slice(lat_min, lat_max)
+).load()
 
-    if os.path.exists(zarr_path):
-        ds_small.to_zarr(
-            zarr_path,
-            mode="a",
-            append_dim="time"
-        )
-    else:
-        ds_small.to_zarr(
-            zarr_path,
-            mode="w"
-        )
+if os.path.exists(zarr_path):
+    ds_small.to_zarr(
+        zarr_path,
+        mode="a",
+        append_dim="time"
+    )
+else:
+    ds_small.to_zarr(
+        zarr_path,
+        mode="w"
+    )
+
+ds.close()
     
-    ds_small.to_netcdf(tmp_fname)
+ds_small.to_netcdf(tmp_fname)
 
-    os.replace(tmp_fname, fname)
+os.replace(tmp_fname, fname)

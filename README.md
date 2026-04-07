@@ -60,6 +60,38 @@ then:
 This method recombines and cleans all data into the standard form. Although all previous data is not needed, if its not trajectories of dFADs still active at the end of the previvous data dump and at the start of the next datadump will not be merged into one trajectory (shapely.linstring)
 
 The cleaning process is all taken care of as part of `Combine_clean_alldata.py`. To clean high and low speeds have been thrown out and the respective timestamps and gps points have been removed from the lists. keeping the lists the same size as number of points in the linestring. 
+# Getting Model data (GLORYs, OSCAR, ERA5)
+Follow these Process to download GLORYs, OSCAR and ERA5 wind data. This renames variables in the dataset into a standard form for the codebase. 
+
+### CMEMS (GLORYsV1.2 daily currents data and Monthly means)
+The notebook `Code\Data\copernicous_Download.ipynb` to download cmems dataset (this will ask for your compernicous password, need an account with Copernicous )
+
+To combine with an old cmems dataset ie. you already have data from the year 2022 and just downloaded the year 2023 and would like to append them. 
+
+    cd Code/Data
+    python Combine_cmems_data.py
+
+
+### OSCAR downdload
+OSCAR downloads one day at a time from the podaac datadownloader and then each day has to be combined into one netCDF file. 
+
+From the main dir (FATE) run in the terminal. Update your envirment path and path to the project. 
+
+
+    podaac-data-downloader -c OSCAR_L4_OC_INTERIM_V2.0 -d Code\Data\OSCAR -sd 2024-01-01T00:00:00Z -ed 2025-01-01T00:00:00Z -b="-164,4.25,-160.5,8" --process "C:\FATE\.venv\Scripts\python.exe C:\FATE\Code\Data\OSCAR\OSCAR_download_processing.py"
+
+As it downloads the data it combines each file into a .zarr file. Then run this next script to conver to .nc and renames the variables into the same format as cmems. Also at this step you can specify if you want it to merge with a previous dataset. 
+
+    cd Code\Data\OSCAR
+    python OSCAR_rename_nc.py
+
+### ERA5 Download 
+to download era5 data use `Code\Data\ERA5_download.ipynb`
+
+then to combine new data with and rename ERA5 data 
+
+    cd Code\Data\
+    python Combine+process_ERA5.py
 
 # Analysis 
 Much of the analysis of dFAD is within the directory `Code`. much of this is not the most organized portion of the codebase. 
