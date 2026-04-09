@@ -13,7 +13,7 @@ podaac-data-downloader  -c OSCAR_L4_OC_INTERIM_V2.0
                         --process ".venv\Scripts\python.exe Code\Data\OSCAR\OSCAR_download_processing.py"
 '
 
-podaac-data-downloader  -c OSCAR_L4_OC_INTERIM_V2.0 -d Code\Data\OSCAR -sd 2025-07-01T00:00:00Z -ed 2026-01-01T00:00:00Z -b="-164,4.25,-160.5,8" --process ".venv\Scripts\python.exe Code\Data\OSCAR\OSCAR_download_processing.py
+podaac-data-downloader  -c OSCAR_L4_OC_INTERIM_V2.0 -d Code\Data\OSCAR -sd 2021-06-27T00:00:00Z -ed 2021-07-01T00:00:00Z -b="-164,4.25,-160.5,8" --process ".venv\Scripts\python.exe Code\Data\OSCAR\OSCAR_download_processing.py"
 
 """
 

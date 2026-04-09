@@ -10,19 +10,20 @@ import glob
 import os 
 import pandas as pd
 
-output_file = r"..\OSCAR_combined_2022_2026.nc"
+output_file = r"..\OSCAR_combined_2021_2026v2.nc"
 
 zarr_file = r'C:\FATE\Code\Data\OSCAR\combined_oscar.zarr'
 
 merge = True 
-merge_with = r'..\OSCAR_combined_2021_2025v2.nc'
+merge_with = r'..\OSCAR_combined_2021_2026.nc'
 
-rename_old = True
+rename_old = False
 
 
-#ds = xr.open_zarr(zarr_file)
 ds = xr.open_zarr(zarr_file)
 ds = ds.swap_dims({ 'latitude': 'lat', 'longitude': 'lon' }).rename({ 'lat': 'latitude', 'lon': 'longitude' })
+ds['longitude'] = ds['longitude'] - 360
+
 
 time_index = pd.to_datetime([t.isoformat() for t in ds.time.values])
 ds["time"] = time_index
@@ -36,8 +37,8 @@ if merge:
     if rename_old: 
         old = old.swap_dims({ 'latitude': 'lat', 'longitude': 'lon' }).rename({ 'lat': 'latitude', 'lon': 'longitude' })
         oldt = old.transpose('time', 'latitude', 'longitude')
-        oldtr = oldt.rename({ 'u': 'uo', 'v': 'vo' }).drop_vars(['ug', 'vg'])
+        old = oldt.rename({ 'u': 'uo', 'v': 'vo' }).drop_vars(['ug', 'vg'])
 
-    dstr = xr.merge([oldtr, dstr], join = 'outer')
+    dstr = xr.merge([old, dstr], join = 'outer')
 
 dstr.to_netcdf(output_file)

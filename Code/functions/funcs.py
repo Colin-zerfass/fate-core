@@ -352,8 +352,12 @@ def Add_Delta_speeds(ds = gpd.GeoDataFrame):
     ds["delta_speed"] = delta_speeds
     return ds
 
-def Add_interp_currents(data,vo,uo, model = "cmems"):
-    """depth = False is the tag for oscar"""
+def Add_interp_currents_old(data,vo,uo, model = "cmems"):
+    """depth = False is the tag for oscar
+    This is an old version of interpolating a models speed the dFAD dataset. 
+    SEE function: 
+    Add_interp_currents()
+    """
     from scipy.interpolate import interpn 
     def closest_point(data, lat, lon, depth, time):
         nearest = data.sel(lat = lat, lon = lon,time = time, method = "nearest") ## add depth back if it mapping onto cmems and change lat -> latitude, lon -> longitude
@@ -965,3 +969,54 @@ def generate_longlist(ds:gpd.GeoDataFrame):
     longlist.Time = pd.to_datetime(longlist.Time)
     return longlist
 
+def Add_interp_currents(data: gpd.GeoDataFrame, vo:xr.Dataset, uo:xr.Dataset, tag = '', depth = 13.4671)->gpd.GeoDataFrame:
+    """
+    interpolation of velocity field onto dFAD track points.
+    spatial + temporal interpolation 
+    linear interpolation, updated version using xarray intead of manual time interping. 
+    """
+    #Check if vo and uo have a depth valeus
+    if 'depth' in vo.dims and 'depth' in  uo.dims:
+        try: 
+            uo = uo.sel(depth = depth)
+            vo = vo.sel(depth = depth)
+        except KeyError as e: 
+            print(f' depth not valid either remove depth dim or valid depth \n {e}')
+            return 
+        
+    #  Flatten all query points from every dFAD track 
+    all_times, all_lats, all_lons = [], [], []
+    row_lengths = []
+
+    for i in range(len(data)):
+        timestamps = data.at[i, "TimeStamp"]
+        n_pts = len(timestamps)
+        row_lengths.append(n_pts)
+        for n in range(n_pts):
+            all_times.append(pd.to_datetime(timestamps[n]))
+            point = sp.get_point(data.at[i, "geometry"], n)
+            all_lats.append(point.y)
+            all_lons.append(point.x)
+
+    # Build pointwise DataArrays (shared "points" dim avoids meshgrid)
+    times_da = xr.DataArray(all_times, dims="points")
+    lats_da  = xr.DataArray(all_lats,  dims="points")
+    lons_da  = xr.DataArray(all_lons,  dims="points")
+
+    # xarray linear-interpolates in lat, lon, time 
+    v_vals = (vo.interp(latitude=lats_da, longitude=lons_da, time=times_da, method="linear")
+                .values.astype(float))
+    u_vals = (uo.interp(latitude=lats_da, longitude=lons_da, time=times_da, method="linear")
+                .values.astype(float))
+
+    # Re-split flat results back into per-dFAD lists 
+    idx = 0
+    mapped_vs, mapped_us = [], []
+    for n_pts in row_lengths:
+        mapped_vs.append(v_vals[idx: idx + n_pts].tolist())
+        mapped_us.append(u_vals[idx: idx + n_pts].tolist())
+        idx += n_pts
+
+    data["mapped_v"+tag] = mapped_vs
+    data["mapped_u"+tag] = mapped_us
+    return data
