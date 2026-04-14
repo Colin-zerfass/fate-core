@@ -8,9 +8,10 @@ Can run each month at a time since the months are independent
 1) Collect all dFADs initial possitions for forcasting.
         - Same method as 'run_model.py' 
 
-2) make forecasts for entire period
+2) make forecasts for entire 1 month period
 
-3) 
+3) Save output to a .zar, this is not alligned with to the actual dFAD data
+have to run Dataloader.py afterwards
 
 """
 import parcels

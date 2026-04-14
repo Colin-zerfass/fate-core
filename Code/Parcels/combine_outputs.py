@@ -3,8 +3,13 @@ import pandas as pd
 import os
 import pandas as pd
 import sys
+import tomllib
 
-FileName = sys.argv[1]
+configfile  = sys.argv[1]
+with open(configfile, 'rb') as f:
+    config = tomllib.load(f)
+
+FileName = config['output_name']
 
 output_csv   = rf"./saved_output/{FileName}.csv"
 # --- SETTINGS ---

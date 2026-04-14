@@ -69,7 +69,6 @@ def Run_model(startmonth:pd.Timestamp, endmonth:pd.Timestamp, monthindex:int, co
     persistence = config['persistence']
     persistencewindow = config['persistence_window']
     usewinds= config['wind']
-    print(usewinds)
     filename = config['currents_file']
     depth = config['depth']
 
@@ -77,16 +76,14 @@ def Run_model(startmonth:pd.Timestamp, endmonth:pd.Timestamp, monthindex:int, co
     # load Currents and Winds 
     ##_______________________
 
-    winds = xr.open_dataset(r"..\Data\ERA5_10m_winds.nc")
-    winds = winds.rename({"lat" :'latitude', 'lon': 'longitude'})
-    winds = winds.sortby('latitude')
+    winds = xr.open_dataset(config['Wind_data'])
 
     if filename == "cmems":
-        cmems = xr.open_dataset(rf"..\Data\cmems.nc")
+        cmems = xr.open_dataset(config['GLORYs_data'])
         if usewinds == True:
             windsi = winds.interp_like(cmems)
-            m = 7.73709253e-01+1.62143540e-01j
-            n = 7.85629581e-03+1.45730160e-03j
+            m = config['GLORYs_correction']['currents'][0] + config['GLORYs_correction']['currents'][1]*1j
+            n = config['GLORYs_correction']['wind'][0] + config['GLORYs_correction']['wind'][1]*1j
             Uo = cmems.uo +cmems.vo*1j
             W = windsi.uo +windsi.vo*1j
             Y = m*Uo + n*W
@@ -95,15 +92,13 @@ def Run_model(startmonth:pd.Timestamp, endmonth:pd.Timestamp, monthindex:int, co
         field = cmems.sel(depth = depth, method = "nearest")
 
     if filename == "OSCAR":
-        oscar = xr.open_dataset(rf"..\Data\OSCAR_combined_2021_2025v2.nc")
-        oscar = oscar.rename({'lon':'longitude', 'lat':'latitude', 'u' : 'uo', 'v':'vo' })
-        oscar = oscar.set_index(longitude='longitude', latitude='latitude')
-        oscar = oscar.transpose('time' ,'latitude', 'longitude')
+        oscar = xr.open_dataset(config['OSCAR_data'])
+
         if usewinds == True:
             print('using winds')
             windsi = winds.interp_like(oscar)
-            m = 9.20652565e-01+1.94924156e-02j
-            n = 1.05991333e-02+7.39510759e-03j
+            m = config['OSCAR_correction']['currents'][0] + config['OSCAR_correction']['currents'][1]*1j
+            n = config['OSCAR_correction']['wind'][0] + config['OSCAR_correction']['wind'][1]*1j
             Uo = oscar.uo +oscar.vo*1j
             W = windsi.uo +windsi.vo*1j
             Y = m*Uo + n*W
@@ -116,7 +111,7 @@ def Run_model(startmonth:pd.Timestamp, endmonth:pd.Timestamp, monthindex:int, co
         ## WARNING The dates in climatological Dataset are from 2024-2025, need to change dates if running outside of those dates. 
         fname = rf"..\Data\drifter_climatology_daily_values.nc"
 
-    ds = gpd.read_parquet(r"..\Data\Mapped_SAT_MI_Cleanedspeeds.parquet")
+    ds = gpd.read_parquet(config['dFAD_data'])
     daterange = pd.date_range(startmonth, endmonth)
     dssave = pd.DataFrame()
     dssave = pd.DataFrame(columns = ["BuoyID","Time", "lat_true", "lon_true", "lat_forcast", "lon_forcast", "leadtime"])

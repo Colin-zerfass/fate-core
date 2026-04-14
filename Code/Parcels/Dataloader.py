@@ -195,10 +195,12 @@ class Alligner():
         self.dssave.to_csv(rf"output\Forecast{[month]}.csv")
 
 def main(startdate, enddate, monthindex):
+     
      print(f"Starting on month {monthindex}")
      ds = gpd.read_parquet(r"..\Data\Mapped_SAT_MI_Cleanedspeeds.parquet")
      engine = Alligner(ds)
-     engine.allign_data_MultipleDays(rf"output\TestParticleFile{monthindex}.zarr", startdate, enddate, pd.Timedelta(days = 7), monthindex )
+     engine.allign_data_MultipleDays(rf"output\TestParticleFile{monthindex}.zarr", startdate, enddate,
+                                      pd.Timedelta(days = 7), monthindex)
      print(f"finished month {monthindex}")
 
 if __name__ == "__main__" : 
@@ -206,13 +208,18 @@ if __name__ == "__main__" :
         """Runs interpoliations onto the true data in Parallel estimated time ~ 20min/year of forecasts"""
         import multiprocessing as mp
         import sys
+        import tomllib
 
-        totalstartdate = sys.argv[1]
-        print(totalstartdate)
-        totalenddate = sys.argv[2]
-        print(totalenddate)
+        # totalstartdate = sys.argv[1]
+        # print(totalstartdate)
+        # totalenddate = sys.argv[2]
+        # print(totalenddate)
+        configfile  = sys.argv[1]
+        with open(configfile, 'rb') as f:
+            config = tomllib.load(f)
                 
-        monthrange = pd.date_range(totalstartdate, totalenddate, freq="MS")
+        monthrange = pd.date_range(config['startdate'], config['enddate'], freq="MS")
+
 
         # Build tuples of (start, end, index)
         inputs = list(zip(
@@ -221,7 +228,7 @@ if __name__ == "__main__" :
             range(len(monthrange)-1)
         ))
 
-        with mp.Pool(processes=6) as pool:
+        with mp.Pool(processes=config['parallel_cores']) as pool:
             results = pool.starmap(main, inputs)
 
     if False: 
