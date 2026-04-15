@@ -22,41 +22,8 @@ sys.path.append(parent_dir)
 import tomllib
 
 from functions.funcs import *
-
-def persistence_AdvectionRK4(particle, fieldset, time):  # pragma: no cover
-    """Advection of particles using fourth-order Runge-Kutta integration.
-    with an added persitence model 
-    units  WARNING
-    particle.dt : (Seconds),
-    particle_dlon/dlat : degrees
-    particle.age & particle.tau (hours), 
-    """
-    import numpy as np 
-    (u1, v1) = fieldset.UV[particle]
-    lon1, lat1 = (particle.lon + u1 * 0.5 * particle.dt, particle.lat + v1 * 0.5 * particle.dt)
-    (u2, v2) = fieldset.UV[time + 0.5 * particle.dt, particle.depth, lat1, lon1, particle]
-    lon2, lat2 = (particle.lon + u2 * 0.5 * particle.dt, particle.lat + v2 * 0.5 * particle.dt)
-    (u3, v3) = fieldset.UV[time + 0.5 * particle.dt, particle.depth, lat2, lon2, particle]
-    lon3, lat3 = (particle.lon + u3 * particle.dt, particle.lat + v3 * particle.dt)
-    (u4, v4) = fieldset.UV[time + particle.dt, particle.depth, lat3, lon3, particle]
-    advection_dlon = (u1 + 2 * u2 + 2 * u3 + u4) / 6.0 * particle.dt  # noqa
-    advection_dlat = (v1 + 2 * v2 + 2 * v3 + v4) / 6.0 * particle.dt  # noqa
-
-    ## Calculating persistence 
-    persistence_dlon = particle.ui*particle.dt
-    persistence_dlat = particle.vi*particle.dt
-
-    # Weighting how much persistence to use
-    persistence_frac = np.exp(-particle.age/particle.tau)
-    if particle.age < 4*particle.tau: 
-        #print(particle.dt, particle.ui, persistence_frac)
-        persistence_frac = np.exp(-particle.age/particle.tau)
-    else: 
-        persistence_frac = 0
-
-    # final displacement 
-    particle_dlon += persistence_dlon*persistence_frac + advection_dlon*(1- persistence_frac)
-    particle_dlat += persistence_dlat*persistence_frac + advection_dlat*(1- persistence_frac)
+from functions.Dataloader_alligner import Dataloader 
+from functions.persistence_AdvectionRK4 import persistence_AdvectionRK4
 
 
 def Run_model(startmonth:pd.Timestamp, endmonth:pd.Timestamp, monthindex:int, configfile:str):
@@ -71,16 +38,19 @@ def Run_model(startmonth:pd.Timestamp, endmonth:pd.Timestamp, monthindex:int, co
     usewinds= config['wind']
     filename = config['currents_file']
     depth = config['depth']
-
+    forecast_length = pd.Timedelta(days = config['forecast_length'])
     ##_______________________
     # load Currents and Winds 
     ##_______________________
 
-    winds = xr.open_dataset(config['Wind_data'])
 
     if filename == "cmems":
         cmems = xr.open_dataset(config['GLORYs_data'])
+        cmems = cmems.sel(time = slice(startmonth, endmonth+forecast_length), 
+              depth = depth) 
         if usewinds == True:
+            winds = xr.open_dataset(config['Wind_data'])
+            winds = winds.sel(time = slice(startmonth, endmonth+forecast_length))
             windsi = winds.interp_like(cmems)
             m = config['GLORYs_correction']['currents'][0] + config['GLORYs_correction']['currents'][1]*1j
             n = config['GLORYs_correction']['wind'][0] + config['GLORYs_correction']['wind'][1]*1j
@@ -93,10 +63,12 @@ def Run_model(startmonth:pd.Timestamp, endmonth:pd.Timestamp, monthindex:int, co
 
     if filename == "OSCAR":
         oscar = xr.open_dataset(config['OSCAR_data'])
-
+        oscar = oscar.sel(time = slice(startmonth, endmonth+forecast_length))
         if usewinds == True:
             print('using winds')
             windsi = winds.interp_like(oscar)
+            winds = xr.open_dataset(config['Wind_data'])
+            winds = winds.sel(time = slice(startmonth, endmonth+forecast_length))
             m = config['OSCAR_correction']['currents'][0] + config['OSCAR_correction']['currents'][1]*1j
             n = config['OSCAR_correction']['wind'][0] + config['OSCAR_correction']['wind'][1]*1j
             Uo = oscar.uo +oscar.vo*1j
@@ -112,52 +84,19 @@ def Run_model(startmonth:pd.Timestamp, endmonth:pd.Timestamp, monthindex:int, co
         fname = rf"..\Data\drifter_climatology_daily_values.nc"
 
     ds = gpd.read_parquet(config['dFAD_data'])
+    ds = querry_date_range(ds,startmonth , endmonth).reset_index()
     daterange = pd.date_range(startmonth, endmonth)
     dssave = pd.DataFrame()
     dssave = pd.DataFrame(columns = ["BuoyID","Time", "lat_true", "lon_true", "lat_forcast", "lon_forcast", "leadtime"])
     for day in daterange:
         target_date = day ## picks dFAD locations one day after this date 
-
     ##_______________
     ##Loads the dFADs 
     ##_______________
 
-        ds_active = querry_date(ds, date = target_date) ## All of the active dFADs at this time 
-        ds_active = ds_active.reset_index()
-        columns = ["TimeStamp", "x_speed", "y_speed"]
-        ds_locations = pd.DataFrame()
-        for label in columns: 
-            longlist, ids = Column_to_List(ds_active, label, idlist = True)
-            
-            ds_locations[label] = longlist
-        lat, lon  = list_of_latlon(ds_active, droplast= False)
-        ds_locations["lat"] = lat
-        ds_locations["lon"] =lon
-        ds_locations["BuoyName"] = ids
-        ds_locations.TimeStamp = pd.to_datetime(ds_locations.TimeStamp)
-        if persistence == True: 
-            ds_locations["x_speed_prev"] = (ds_locations.groupby("BuoyName")["x_speed"].transform(lambda x: x.rolling(window=persistencewindow, min_periods=1).mean())) ## Calcuates persistence based pervious window
-            ds_locations["y_speed_prev"] = (ds_locations.groupby("BuoyName")["y_speed"].transform(lambda x: x.rolling(window=persistencewindow, min_periods=1).mean()))
-
-        ##Filter Timestep by certain threshhold to get locations of FADS within closes  
-        ## UPDATE:This might be better to interp these onto the specific time. 
-        hourlim = 24
-        time_threshhold  = pd.Timedelta(hours= hourlim)
-        time_upper  = target_date + time_threshhold ## This is set for dFADs one day after the date 
-        time_lower = target_date 
-        ds_locations = ds_locations.query(f"TimeStamp > @time_lower")
-        ds_locations = ds_locations.query(f"TimeStamp < @time_upper")
-        #print(f"Amount of sampled dFAD within {hourlim} hrs : {len(ds_locations)}")
-        ds_locations = ds_locations.drop_duplicates(subset=["lat"], keep="first")
-        ds_locations = ds_locations.drop_duplicates(subset=["lon"], keep="first").reset_index(drop = True)
-
-        ## New get only the first point of the day for the forcast.
-
-        dFADs = ds_locations.sort_values('TimeStamp').groupby("BuoyName").first()
-        print(f"{target_date}:Number of Unique dFADs/ points avalable: {len(dFADs)} ")
-        if len(dFADs) < 1: 
-            continue
-        dFADs = dFADs.reset_index()
+        loader = Dataloader(ds)
+        loader.First_possitions(day, persistencewindow= persistencewindow)
+        dFADs = loader.dFADs.reset_index(drop = True)
 
     ##_______________
     ##Make the Model
@@ -165,10 +104,7 @@ def Run_model(startmonth:pd.Timestamp, endmonth:pd.Timestamp, monthindex:int, co
 
         variables  = {"U": "uo", "V": "vo"}
         dimensions = {"lat": "latitude", "lon": "longitude"}
-        if config['currents_file'] == 'cmems':
-            field_t = field.sel(time = target_date, method = "nearest").drop_vars('time')
-        if config['currents_file'] == 'OSCAR':
-            field_t = field.sel(time = target_date, method = "nearest")
+        field_t = field
         fieldset  = parcels.FieldSet.from_xarray_dataset(field_t, variables, dimensions, allow_time_extrapolation= True) 
 
         fieldset.add_constant("halo_west", fieldset.U.grid.lon[0])
@@ -208,7 +144,7 @@ def Run_model(startmonth:pd.Timestamp, endmonth:pd.Timestamp, monthindex:int, co
 
             pset.execute([persistence_AdvectionRK4, boundryCondition, Age], 
                             runtime = timedelta(days = 8), ##this should be 8 days 
-                            dt = timedelta(minutes =5), 
+                            dt = timedelta(minutes =20), 
                             output_file = output_file, 
                             )
         else: 
@@ -218,7 +154,7 @@ def Run_model(startmonth:pd.Timestamp, endmonth:pd.Timestamp, monthindex:int, co
             output_file = pset.ParticleFile(name = output_memorystore, outputdt =timedelta(hours= 1))
             pset.execute([parcels.AdvectionRK4, boundryCondition, Age], 
                         runtime = timedelta(days = 8), ##this should be 8 days 
-                        dt = timedelta(minutes =5), 
+                        dt = timedelta(minutes =20), 
                         output_file = output_file, 
                         )
 
@@ -227,6 +163,7 @@ def Run_model(startmonth:pd.Timestamp, endmonth:pd.Timestamp, monthindex:int, co
         ##________________
 
         buoy_list = dFADs.BuoyName.tolist() 
+        ds_active = querry_date(ds, day)
         ds_filtered = ds_active[ds_active["BuoyName"].isin(buoy_list)].reset_index(drop = True)
 
 
@@ -293,7 +230,8 @@ def Run_model(startmonth:pd.Timestamp, endmonth:pd.Timestamp, monthindex:int, co
             dssave = pd.concat([dssave, dstemp])
 
     dssave.to_csv(rf"output\Forecast{[monthindex]}.csv")
-
+    with open(r"..\output\Output_logs.txt", "a") as log_file:
+        log_file.write(f"Model {monthindex} {startmonth} {endmonth} run complete\n")
 
 if __name__ == "__main__":  
 
@@ -309,7 +247,10 @@ if __name__ == "__main__":
     totalstartdate = config['startdate']
     totalenddate = config['enddate']
     monthrange = pd.date_range(totalstartdate, totalenddate, freq="MS")
-    print()
+
+    with open(r"..\output\Output_logs.txt", "a") as log_file:
+        log_file.write(f"Starting Run: {config['output_name']}")
+    
     # Build tuples of (start, end, index)
     inputs = list(zip(
         monthrange[:-1],
