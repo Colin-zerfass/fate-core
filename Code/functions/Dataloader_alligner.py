@@ -36,7 +36,7 @@ class Dataloader():
         """
         endofday = date + window_length
         ds_active = fad.querry_date(self.ds, date) ## All of the active dFADs at this time  #863 total points 
-        ds_active = ds_active.reset_index()
+        ds_active = ds_active.reset_index(drop = True)
         columns = ["TimeStamp", "x_speed", "y_speed"]
         ds_locations = pd.DataFrame(columns = ["BuoyName","lat", "lon", "TimeStamp", "x_speed", "y_speed"])
         for label in columns: 
@@ -69,13 +69,13 @@ class Dataloader():
         """Gets the First possitions of all the dFADs on each day in the range. 
         Used when running the dynammical model over a period of time"""
         Monthdaterange = pd.date_range(startdate, enddate, freq= "D")
-        for day in Monthdaterange[:-1]:
+        for day in Monthdaterange:
             self.First_possitions(date=day, window_length=window_length,
                                   persistencewindow = persistencewindow )
     
 
             
-class Alligner_test():
+class Alligner():
     """Take Parcels model output and alligns it the true data, 
      so it can be compaired to the true points"""
     def __init__(self, ds:gpd.GeoDataFrame):
@@ -99,8 +99,8 @@ class Alligner_test():
             else: 
                 ds_s.at[i,"geometry"] = None
         return ds_s 
-    def allign_data_MultipleDays(self,output: str, startdate:pd.Timestamp, enddate:pd.Timestamp, forcasttime: pd.Timedelta, month: int):
-        output = xr.open_zarr(output, decode_timedelta=True)
+    def allign_data_MultipleDays(self,output: xr.Dataset, startdate:pd.Timestamp, enddate:pd.Timestamp, forcasttime: pd.Timedelta, month: int):
+
 
                 # Build reverse mapping: integer stored in zarr -> BuoyName.
         all_buoys = sorted(self.True_dFAD_data.ds["BuoyName"].unique())
@@ -121,6 +121,7 @@ class Alligner_test():
         # Load full xarray arrays into numpy once — avoids repeated per-row xarray reads inside the loop
         all_lats = output.lat.values       # shape (n_buoys, n_times)
         all_lons = output.lon.values
+        print(output.time.values)
         all_times = output.time.values
         buoy_indices = output.Buoyindex.values
         masklarge = ~np.isnan(all_lats)
@@ -194,4 +195,4 @@ class Alligner_test():
         self.dssave =  pd.DataFrame({"BuoyID": BuoyID_l,"Time": Time_l, "lat_true": lat_true_l, "lon_true": lon_true_l, "lat_forcast":lat_interp_l,
                                       "lon_forcast":lon_interp_l, "leadtime":leadtimes_l})
         print(f"{month} has empty data: {emptydata}")
-        self.dssave.to_csv(rf"output\Forecast{[month]}.csv")
+        #self.dssave.to_csv(rf"output\Forecast{[month]}.csv")
