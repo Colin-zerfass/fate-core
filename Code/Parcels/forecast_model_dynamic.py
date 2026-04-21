@@ -48,22 +48,24 @@ def Run_model_dynamical(startdate, enddate, monthindex, configfile):
     cmems = xr.open_dataset(config['GLORYs_data'])
     cmems = cmems.sel(time = slice(startdate, enddate+forecast_length), 
               depth = depth) 
-    ## could run into a problem since cmems ends 2026-01-01 but forecast run to 6-01-07
+    Uo = cmems.uo +cmems.vo*1j
+
+    if config['bias'] == True: 
+        m = (config['GLORYs_correction']['currents'][0] + 
+             config['GLORYs_correction']['currents'][1]*1j)
+        Uo = m*Uo
 
     if usewinds == True:
         winds = xr.open_dataset(config['Wind_data'])
         winds = winds.sel(time = slice(startdate, enddate+forecast_length))
         windsi = winds.interp_like(cmems) ## adding winds 
         ## Y = m*Uo + n*W
-        m = (config['GLORYs_correction']['currents'][0] + 
-             config['GLORYs_correction']['currents'][1]*1j)
+        W = windsi.uo +windsi.vo*1j
         n = (config['GLORYs_correction']['wind'][0] + 
              config['GLORYs_correction']['wind'][1]*1j)
-        Uo = cmems.uo +cmems.vo*1j
-        W = windsi.uo +windsi.vo*1j
-        Y = m*Uo + n*W
-        cmems['uo'] = Y.real
-        cmems['vo'] = Y.imag
+        Uo = Uo + n*W
+    cmems['uo'] = Uo.real
+    cmems['vo'] = Uo.imag
     field = cmems
 
 

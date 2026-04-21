@@ -121,7 +121,6 @@ class Alligner():
         # Load full xarray arrays into numpy once — avoids repeated per-row xarray reads inside the loop
         all_lats = output.lat.values       # shape (n_buoys, n_times)
         all_lons = output.lon.values
-        print(output.time.values)
         all_times = output.time.values
         buoy_indices = output.Buoyindex.values
         masklarge = ~np.isnan(all_lats)
@@ -163,11 +162,8 @@ class Alligner():
             lons = all_lons[i, mask]
             lat_interp = np.interp(dFAD_times_s, forcast_time_start,lats) # interpolates Forcast times onto true dFAD times 
             lon_interp = np.interp(dFAD_times_s, forcast_time_start, lons) 
-            lat_interp = np.insert(lat_interp, 0,np.nan) ## add nan at start of forcast for this is where the initial point is. 
-            lon_interp = np.insert(lon_interp, 0,np.nan) ## need to add this into the true data 
 
-            if len(dFAD_times_s) == 0:
-                print(f"data is empty {month}") 
+            if len(dFAD_times_s) == 0: 
                 emptydata += 1
                 continue
             if row["geometry"] is None:
@@ -177,10 +173,23 @@ class Alligner():
             # np.searchsorted is faster than np.where for sorted arrays
             idx_start = np.searchsorted(dFAD_times, dFAD_times_s[0])
             idx_end = np.searchsorted(dFAD_times, dFAD_times_s[-1])
+
+            # Guard against idx_start == 0: using idx_start-1 when idx_start is 0
+            # causes Python negative indexing to wrap to the last element of the array,
+            # producing a wrong-length slice and mismatching lat_interp_l / lat_true_l.
+            # When there is no prior true observation (idx_start == 0), skip the NaN
+            # "initial point" marker so both lists stay the same length.
+            if idx_start > 0:
+                lat_interp = np.insert(lat_interp, 0, np.nan)
+                lon_interp = np.insert(lon_interp, 0, np.nan)
+                slice_start = idx_start - 1
+            else:
+                slice_start = 0
+
             lon_true, lat_true= row["geometry"].xy
-            lon_true = lon_true[idx_start-1:idx_end+1]
-            lat_true = lat_true[idx_start-1:idx_end+1]
-            Times = Times[idx_start-1:idx_end+1]
+            lon_true = lon_true[slice_start:idx_end+1]
+            lat_true = lat_true[slice_start:idx_end+1]
+            Times = Times[slice_start:idx_end+1]
             leadtimes = (Times - Times[0]).total_seconds()/3600
 
             Buoylist = [id]*len(lat_true) 
@@ -194,5 +203,5 @@ class Alligner():
 
         self.dssave =  pd.DataFrame({"BuoyID": BuoyID_l,"Time": Time_l, "lat_true": lat_true_l, "lon_true": lon_true_l, "lat_forcast":lat_interp_l,
                                       "lon_forcast":lon_interp_l, "leadtime":leadtimes_l})
-        print(f"{month} has empty data: {emptydata}")
+        print(f"{month} has empty data: {emptydata}/{len(buoy_indices)}")
         #self.dssave.to_csv(rf"output\Forecast{[month]}.csv")

@@ -46,35 +46,44 @@ def Run_model_static(startmonth:pd.Timestamp, endmonth:pd.Timestamp, monthindex:
         cmems = xr.open_dataset(config['GLORYs_data'])
         cmems = cmems.sel(time = slice(startmonth, endmonth+forecast_length), 
               depth = depth) 
+        Uo = cmems.uo +cmems.vo*1j
+
+        if config['bias'] == True:
+            m = config['GLORYs_correction']['currents'][0] + config['GLORYs_correction']['currents'][1]*1j
+            Uo = m*Uo
+
         if usewinds == True:
             winds = xr.open_dataset(config['Wind_data'])
             winds = winds.sel(time = slice(startmonth, endmonth+forecast_length))
-            windsi = winds.interp_like(cmems)
-            m = config['GLORYs_correction']['currents'][0] + config['GLORYs_correction']['currents'][1]*1j
             n = config['GLORYs_correction']['wind'][0] + config['GLORYs_correction']['wind'][1]*1j
-            Uo = cmems.uo +cmems.vo*1j
+            windsi = winds.interp_like(cmems)
             W = windsi.uo +windsi.vo*1j
-            Y = m*Uo + n*W
-            cmems['uo'] = Y.real
-            cmems['vo'] = Y.imag
+            Uo = Uo + n*W
+            
+        cmems['uo'] = Uo.real
+        cmems['vo'] = Uo.imag
         field = cmems.sel(depth = depth, method = "nearest")
 
     if filename == "OSCAR":
         oscar = xr.open_dataset(config['OSCAR_data'])
         oscar = oscar.sel(time = slice(startmonth, endmonth+forecast_length))
+        Uo = oscar.uo +oscar.vo*1j
+
+        if config['bias'] == True:
+            m = config['OSCAR_correction']['currents'][0] + config['OSCAR_correction']['currents'][1]*1j
+            Uo = m*Uo
+
         if usewinds == True:
-            print('using winds')
-            winds = xr.open_dataset(config['Wind_data'])
-            windsi = winds.interp_like(oscar)
             winds = xr.open_dataset(config['Wind_data'])
             winds = winds.sel(time = slice(startmonth, endmonth+forecast_length))
-            m = config['OSCAR_correction']['currents'][0] + config['OSCAR_correction']['currents'][1]*1j
+            windsi = winds.interp_like(oscar)
             n = config['OSCAR_correction']['wind'][0] + config['OSCAR_correction']['wind'][1]*1j
-            Uo = oscar.uo +oscar.vo*1j
+
             W = windsi.uo +windsi.vo*1j
-            Y = m*Uo + n*W
-            oscar['uo'] = Y.real
-            oscar['vo'] = Y.imag
+            Uo = Uo + n*W
+
+        oscar['uo'] = Uo.real
+        oscar['vo'] = Uo.imag
         field = oscar
 
     ## WARNING climatology OUTdated assing fname to field like OSCAR and CMEMS above
@@ -99,6 +108,7 @@ def Run_model_static(startmonth:pd.Timestamp, endmonth:pd.Timestamp, monthindex:
         loader = Dataloader(ds_timerange)
         loader.First_possitions(day, persistencewindow= persistencewindow)
         dFADs = loader.dFADs.reset_index(drop = True)
+        dFADs["TimeStamp"] = pd.to_datetime(dFADs["TimeStamp"])
 
         dFADs["BuoyIntID"] = dFADs["BuoyName"].map(buoy_to_int)
     ##_______________
@@ -117,8 +127,7 @@ def Run_model_static(startmonth:pd.Timestamp, endmonth:pd.Timestamp, monthindex:
         fieldset.add_constant("halo_north", fieldset.U.grid.lat[-1])
         fieldset.add_constant("halo_south", fieldset.U.grid.lat[0])
         fieldset.add_periodic_halo(zonal = True , meridional= True)
-        print(f"fieldset lon: {fieldset.U.grid.lon[0]}")
-        print(f"fieldset lat: {fieldset.U.grid.lat[0]}")
+
         def boundryCondition(particle, fieldset,time):
             if particle.lon < fieldset.halo_west or particle.lon > fieldset.halo_east:
                 particle.delete()

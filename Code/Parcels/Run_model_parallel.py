@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 from forecast_model_dynamic import Run_model_dynamical
 from forecast_model_static import Run_model_static
-
+from combine_outputs import combine_outputs_csv 
 
 """Method of running the model on given number of threads, one model runs on each thread sectioned by the monthrange above"""
 ### could work on running for less than a one month period
@@ -42,6 +42,10 @@ if __name__ == '__main__':
     if config['dynamical'] == False: 
         with mp.Pool(processes=n_cores) as pool:
             results = pool.starmap(Run_model_static, inputs)
+
+
+    ## combines ouputs into one csv
+    combine_outputs_csv(config)    
 
 
 
