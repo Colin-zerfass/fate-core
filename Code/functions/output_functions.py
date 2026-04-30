@@ -238,3 +238,16 @@ def quantile_regression(data, qstep = 0.1, timestep =4):
             op["initial_lat"].values[bin_idx, q_idx] = row["initial_lat"]
 
     return op
+
+
+def Projection_binning(merged: pd.DataFrame, label:str, binindex : int):
+    bins = np.linspace(0,8*24,2*24+1)
+    merged["lead_bins"] = pd.cut(merged["leadtime"], bins)
+    binlist = merged["lead_bins"].unique().sort_values()
+    a  =binlist[binindex] ## list of bin intervals 
+    mergedhr = merged.groupby("lead_bins",  observed=False).get_group(a).copy()
+    ##now group by speeds and take a mean.
+    speedbins = np.linspace(mergedhr[label].min(),mergedhr[label].max(),20)
+    mergedhr["projection_bin"] = pd.cut(mergedhr[label], speedbins)
+    binned_errors = mergedhr.groupby("projection_bin",  observed=False)["error_km"].mean()
+    return speedbins, binned_errors
