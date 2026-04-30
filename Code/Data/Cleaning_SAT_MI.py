@@ -116,7 +116,7 @@ if True: ## Checking size of the arrays
     print(f"Number of points removed in row {rowtestingg}: {dataclean.points_removed[rowtestingg] + dataclean.points_removed[rowtestingg]} ")
     print(f"For Buoy {dataclean.BuoyName[rowtestingg]}")
 
-dataclean.to_parquet(r"SAT_MI_FAD_cleanedspeeds.parquet")
+dataclean.to_parquet(r"SAT_MI_FAD_cleanedspeeds_2026-01-01.parquet")
 print(len(dataclean))
 speeds = Column_to_List(dataclean,"xy_speed")
 print(f"Max speeds are : {max(speeds)}")

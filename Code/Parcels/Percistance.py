@@ -114,7 +114,7 @@ def Forcast_snippit(ds: gpd.GeoDataFrame, dates, startdate, length)-> gpd.GeoDat
 
 
 ds = gpd.read_parquet(r"..\Data\Mapped_SAT_MI_Cleanedspeeds.parquet")
-monthrange = pd.date_range("2024-01-1","2025-01-1", freq= "MS")
+monthrange = pd.date_range("2022-01-01","2025-07-01", freq= "MS")
 for month in range(len(monthrange)-1):
     daterange = pd.date_range(monthrange[month], monthrange[month+1])
     dssave = pd.DataFrame()
@@ -179,25 +179,15 @@ for month in range(len(monthrange)-1):
 
             future, time = persistence_model(onedFAD, target_time, 10,8*24, velocity_window = 2, dt_freq= pd.Timedelta(hours= 4), target_date = target_date)
             future["BuoyID"] = [BuoyID]*len(future) 
-            # dFAD_true = ds_short_t.query("BuoyName == @BuoyID").reset_index(drop = True)
-            # geo = dFAD_true.geometry
-            # if geo[0] == None:
-            #     continue
-            # lat_true, lon_true  = list_of_latlon(dFAD_true, droplast= False)
-            # timesave = dFAD_true["TimeStamp"]
-            
-            
-
-            # Bouylist = [BuoyID]*len(future) 
-
-            # print(len(future), len(Bouylist), len(timesave[0]), len(lat_true), len(lon_true))
-            # if len(future) != len(lon_true):
-            #     print(future)
-            #     print(timesave[0])
-            # dstemp= pd.DataFrame({"BuoyID": Bouylist, "Time": timesave[0],
-            #                         "lat_true":lat_true ,"lon_true":lon_true,
-            #                         "lat_forcast": future["Latitude_persistence"], "lon_forcast": future["Longitude_persistence"], 
-            #                         "leadtime": future['lead_time_hours']})
+    
             dssave = pd.concat([dssave, future])
+
+    dssave = dssave.drop(columns= ["BouyID", 'speed_ms_persistence'])
+
+  # to fix persistance column names intial
+    dssave=dssave.rename(columns={"Latitude_true" : "lat_true", "Longitude_true": "lon_true", 
+                    "Latitude_persistence": "lat_forcast",
+                      "Longitude_persistence": "lon_forcast", 
+                      "lead_time_hours": "leadtime" , "DateTime": "Time"})
 
     dssave.to_csv(rf"output\Percistance_Forecast{[month]}.csv")

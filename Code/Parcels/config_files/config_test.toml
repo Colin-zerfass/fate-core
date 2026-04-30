@@ -23,11 +23,19 @@ depth = 15.8101 # Options are: [ 0.494   1.5414  2.6457  3.8195  5.0782  6.4406 
 bias = false
 wind = false
 
+## from the script Wind_bias_correction.py
+## This solves the equation of U' = a*Uo' + b*W' where U' = U - mean(U) 
+
+## if you want this to not subtract the mean solve the equation Umean = 0 
 # bias corrections
 [GLORYs_correction]
-currents = [0.7573312, 0.0755568]
-wind = [0.00716077, 0.00279476] 
-
+currents = [0.7573312, 0.0755568] #a
+wind = [0.00716077, 0.00279476] #b
+Uo_clim_mean = [0.233,  0.0674] #mean(u)
+U_dFAD_mean = [0.163768, 0.049398]
+W_clim_mean = []
+## oscar is not set up to run with bias correction with the mean subtracted.... 
 [OSCAR_correction]
-currents = [0.94156209 , 7.33441934e-05]
+currents = [0.94156209 , 7.33441934e-05] 
 wind = [0.00791801, 4.05632385e-03]
+W_clim_mean = [-6.000 , -0.20591]

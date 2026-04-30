@@ -53,17 +53,24 @@ def Run_model_dynamical(startdate, enddate, monthindex, configfile):
     if config['bias'] == True: 
         m = (config['GLORYs_correction']['currents'][0] + 
              config['GLORYs_correction']['currents'][1]*1j)
-        Uo = m*Uo
+        # Correction was fit on anomalies: subtract GLORYs clim mean, apply correction, restore dFAD mean
+        Uo_clim_mean = (config['GLORYs_correction']['Uo_clim_mean'][0] +
+                        config['GLORYs_correction']['Uo_clim_mean'][1]*1j)
+        U_dfad_mean  = (config['GLORYs_correction']['U_dfad_mean'][0] +
+                        config['GLORYs_correction']['U_dfad_mean'][1]*1j)
+        Uo = m * (Uo - Uo_clim_mean) + U_dfad_mean
 
     if usewinds == True:
         winds = xr.open_dataset(config['Wind_data'])
         winds = winds.sel(time = slice(startdate, enddate+forecast_length))
         windsi = winds.interp_like(cmems) ## adding winds 
-        ## Y = m*Uo + n*W
+        ## Y = m*Uo' + n*W'  (anomaly regression)
         W = windsi.uo +windsi.vo*1j
         n = (config['GLORYs_correction']['wind'][0] + 
              config['GLORYs_correction']['wind'][1]*1j)
-        Uo = Uo + n*W
+        W_clim_mean = (config['GLORYs_correction']['W_clim_mean'][0] +
+                       config['GLORYs_correction']['W_clim_mean'][1]*1j)
+        Uo = Uo + n * (W - W_clim_mean)
     cmems['uo'] = Uo.real
     cmems['vo'] = Uo.imag
     field = cmems

@@ -1,5 +1,6 @@
 import pandas as pd 
 import numpy as np 
+import statsmodels.formula.api as smf 
 
 def add_starttime(fc):
     fc['Time'] = pd.to_datetime(fc['Time'])
@@ -43,6 +44,46 @@ def haversine_df(df, lat1='lat1', lon1='lon1', lat2='lat2', lon2='lon2', radius=
     c = 2 * np.arcsin(np.sqrt(a))
 
     return radius * c
+ 
+def calculate_rmse(group, column = 'error_km'):
+    """Calcuates RMSE, 
+    USE:  ds.groupby('leadtime', observed = False).appy(calculate_rmse)"""
+    rmse = np.sqrt((group[column]**2).mean())
+    return rmse 
+
+def interpolate_data(group, dt = 4):
+    "intepolates the forecast data "
+
+    lead_col = 'leadtime'
+    bins = np.linspace(0, 8*24, 2*24 + 1)  # every 4 hours
+
+    g = group.copy()
+    g = g.set_index(lead_col).sort_index()
+
+    # If there are duplicate leadtime values, remove them before interpolating
+    if g.index.duplicated().any():
+        g = g[~g.index.duplicated(keep='first')]
+    
+    maxleadtime = g.index.max()
+    bins_shortened = bins[bins < maxleadtime]
+    new_index = pd.Index(bins_shortened, name=lead_col)
+
+    # include existing points so interpolation has anchors, then interpolate
+    combined_index = new_index.union(g.index)
+    g = g.reindex(combined_index).sort_index()
+    cols = ['Time','lat_true', 'lon_true','lat_forcast', 'lon_forcast']
+    g = g[cols].interpolate(method='linear', limit_direction='both')
+
+    # keep only the rows at the bin locations
+    out = g.reindex(new_index).reset_index()
+    return out
+
+def dtrue(group): 
+    "calcuates the displacement of each timestep of the true data"
+    group['dlat_true'] = group['lat_true'].diff()
+    group['dlon_true'] = group['lon_true'].diff()
+    return group
+
 
 def calc_initial_lat_lon(ds):
     ds_sorted = ds.sort_values(['leadtime'])
@@ -130,3 +171,70 @@ def inital_current_var(merged,sufix = None):
     merged['startday'] = merged['startday'].dt.date
     mergedvar = pd.merge(merged, varts, how = "left",on =  "startday")
     return mergedvar
+
+
+
+def quantile_regreession_oneleatime_and_q(data, q):
+    """Data is at one specific leadtiem, q is what quantile (0-1)"""
+    model = smf.quantreg("error_km ~ initial_speed_dif_mag + initial_lat", data)
+    model = model.fit(q=q)
+    return model
+
+def quantile_regression_one_leadtime(data,qstep = 0.1):
+    """ Calcuates all q for within that range. 
+    Data has to already be filtered to one leadtime"""
+    qrange = np.arange(0,1,qstep)
+    qrange = qrange[1:]
+    print(qrange)
+    rows = []
+    for q in qrange:
+        model = quantile_regreession_oneleatime_and_q(data,q)
+        model = model.params.to_frame().T
+        model["q"] = q
+        rows.append(model)
+    output = pd.concat(rows, ignore_index=True)
+    return output
+
+def quantile_regression(data, qstep = 0.1, timestep =4):
+    """calcs regression based on initial speed differance and latitude from forecasts
+    Used 'Generate_qunatiles.py' and to make fig 5 in the paper
+    """
+    import xarray as xr
+
+
+    timerange = np.arange(0,24*7,timestep )
+    data['lead_bin'] = pd.cut(data.leadtime, timerange)
+    # get the ordered bin intervals from the categorical produced by pd.cut when possible
+    bins = timerange[1:]
+    binlist = data.lead_bin.unique().sort_values().dropna()
+    # match the qrange used in quantile_regression_one_leadtime (skip 0)
+    qrange = np.arange(0,1,qstep)[1:]
+
+    # store actual leadtime hours (upper edge of each bin) as the coordinate
+    # so that outputs.sel(leadtime=72) correctly finds the 72-hour bin
+    op = xr.Dataset(
+        {
+            "Intercept": (["leadtime", "q"], np.full((len(bins), len(qrange)), np.nan)),
+            "initial_speed_dif_mag": (["leadtime", "q"], np.full((len(bins), len(qrange)), np.nan)),
+            "initial_lat": (["leadtime", "q"], np.full((len(bins), len(qrange)), np.nan)),
+        },
+        coords={"leadtime": bins.astype(float), "q": qrange}
+    )
+
+    for bin in binlist:
+        # use bin.right to find the correct position in the bins array,
+        # so empty bins don't shift the index
+        bin_idx = np.where(bins == bin.right)[0]
+        if len(bin_idx) == 0:
+            continue
+        bin_idx = bin_idx[0]
+        print(bin)
+        lt_bin = data.query('lead_bin == @bin')
+        output = quantile_regression_one_leadtime(lt_bin, qstep=qstep)
+        for _, row in output.iterrows():
+            q_idx = np.where(qrange == row["q"])[0][0]
+            op["Intercept"].values[bin_idx, q_idx] = row["Intercept"]
+            op["initial_speed_dif_mag"].values[bin_idx, q_idx] = row["initial_speed_dif_mag"]
+            op["initial_lat"].values[bin_idx, q_idx] = row["initial_lat"]
+
+    return op

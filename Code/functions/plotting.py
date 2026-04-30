@@ -5,6 +5,7 @@ import numpy as np
 import shapely as sp
 import xarray as xr
 import functions.funcs
+import matplotlib.colors as mcolors
 
 def RandTrajectories(ds, amount):
     """plots random Trajectories from dataset provided"""
@@ -116,11 +117,15 @@ def Add_bathymetry(fig,ax, filepath = r"Data\bath.nc", colorbar = True):
     Filepath: Location of Bathymetry,"""
     from matplotlib import cm
     bath = xr.open_dataset(filepath)
-    bath_cmap = cm.get_cmap("Blues_r").copy()
+    cmap1 = cm.get_cmap("Blues_r").copy()
+    bath_cmap = cmap1(np.linspace(0.6,1, 256))
+    bath_cmap = mcolors.ListedColormap(bath_cmap)
     bath_cmap.set_over('green')
-    negative_levels = np.linspace(-10000, 0, 11)
+    negative_levels = np.linspace(-4000, 0, 5)
     cbr = ax.contourf( bath["lon"], bath["lat"], bath["elevation"], 
-                    cmap = bath_cmap, alpha = 0.8, levels = negative_levels, extend = "max")
+                    cmap = bath_cmap, alpha = 1, levels = negative_levels, extend = "both")
+    # ax.contour(bath["lon"], bath["lat"], bath["elevation"], 
+    #            levels=negative_levels, colors='black', linewidths=0.5, alpha=0.5)
     if colorbar == True:
         fig.colorbar(cbr, label = 'Bathymetry [m]')
     #cbr.set_label("m")

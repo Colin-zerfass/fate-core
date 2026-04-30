@@ -954,19 +954,19 @@ def interpolate_dFADs(group, dt = pd.Timedelta(hours= 1),
     out = g.reindex(new_index).reset_index()
     return out
 
-def generate_longlist(ds:gpd.GeoDataFrame): 
+def generate_longlist(ds:gpd.GeoDataFrame, extra_columns = []): 
     """Generates an unstacked version of the dFAD dataset where each gpx poing its its 
-    own row in the dataset"""
+    own row in the dataset 
+    Retruns the colums: Time, BuoyID, Lats, x_speed, y_speed"""
     longlist = pd.DataFrame({})
-    longlist["Time"] = Column_to_List(ds, "TimeStamp", idlist = False)
+    longlist["Time"], longlist['BuoyID'] = Column_to_List(ds, "TimeStamp", idlist = True)
+    longlist['Time'] = pd.to_datetime(longlist['Time'])
     longlist["lats"], longlist["lons"] = list_of_latlon(ds, False)
     longlist["x_speed"] = Column_to_List(ds, "x_speed", idlist = False)
     longlist["y_speed"] = Column_to_List(ds, "y_speed", idlist = False)
-    longlist["v_mapped"], longlist["BuoyID"]  =Column_to_List(ds, "mapped_v", idlist = True)
-    longlist["v_mapped_OSCAR"], longlist["BuoyID"]  =Column_to_List(ds, "mapped_v_oscar", idlist = True)
-    longlist["u_mapped"] = Column_to_List(ds, "mapped_u", idlist = False)
-    longlist["u_mapped_OSCAR"] = Column_to_List(ds, "mapped_u_oscar", idlist = False)
-    longlist.Time = pd.to_datetime(longlist.Time)
+    for name in extra_columns: 
+        longlist[name] = Column_to_List(ds, name, idlist= False)
+
     return longlist
 
 def Add_interp_currents(data: gpd.GeoDataFrame, vo:xr.Dataset, uo:xr.Dataset, tag = '', depth = 13.4671)->gpd.GeoDataFrame:
