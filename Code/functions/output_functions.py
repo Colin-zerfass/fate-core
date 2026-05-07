@@ -1,8 +1,10 @@
 import pandas as pd 
 import numpy as np 
 import statsmodels.formula.api as smf 
+import geopandas as gpd
 
 def add_starttime(fc):
+    fc = fc.copy()
     fc['Time'] = pd.to_datetime(fc['Time'])
     fc['leadtime_dt'] = pd.to_timedelta(fc['leadtime'], unit= 'hours')
     fc["starttime"] = (fc["Time"] - fc["leadtime_dt"]).dt.round("min")
@@ -251,3 +253,17 @@ def Projection_binning(merged: pd.DataFrame, label:str, binindex : int):
     mergedhr["projection_bin"] = pd.cut(mergedhr[label], speedbins)
     binned_errors = mergedhr.groupby("projection_bin",  observed=False)["error_km"].mean()
     return speedbins, binned_errors
+
+
+def merged_dataframe_add_all_columns(forecast:pd.DataFrame, dFAD:gpd.GeoDataFrame):
+    """Combine a forecast dataset with the dFADs using merge_fore_cast_true() 
+    then adds the columns of starttime, initial_lat and inital_speed_dif """
+    from functions.funcs import generate_longlist
+    longlist = generate_longlist(dFAD, extra_columns= ['mapped_u', 'mapped_v'])
+    longlist = longlist.rename(columns = {'mapped_u':'u_mapped', 'mapped_v': 'v_mapped'})
+    merged  = merge_forecast_true(forecast, longlist)
+    merged =  add_starttime(merged)
+    merged =  calc_iniial_lat(merged)
+    merged =  calc_intial_speed_dif(merged)
+    merged = merged.sort_values(['BuoyID', 'starttime', 'Time']).reset_index(drop = True)
+    return merged

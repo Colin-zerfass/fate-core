@@ -1020,3 +1020,43 @@ def Add_interp_currents(data: gpd.GeoDataFrame, vo:xr.Dataset, uo:xr.Dataset, ta
     data["mapped_v"+tag] = mapped_vs
     data["mapped_u"+tag] = mapped_us
     return data
+
+
+def Query_dFAD_inclusive(dFAD_ds:gpd.GeoDataFrame, 
+                        BuoyID = None | str, 
+                        starttime = None | str, endtime = None | str, 
+                        lat_min =None | float, lat_max = None |float  ,
+                        lon_min =None | float, lon_max = None |float ):
+    """return entire dFAD trajecories that have at least one point within the citeria
+    READ warning if using a bounding box(all 4 lat and lons)
+    """
+    # if type(longlist) is None:
+    subset = dFAD_ds.copy()
+
+    if BuoyID is not None:
+        subset = subset[subset.BuoyID == BuoyID]
+
+    if (starttime is not None ) and (endtime is not None):
+        #Query dFAD that have at least one point in it 
+        subset = querry_date_range(subset, startdate=starttime, enddate=endtime)
+        subset = subset.reset_index(drop = True )
+
+    box = True if ((lat_max is not None) and (lat_min is not None) and (lon_max is not None) and (lon_min is not None)) else False
+
+    if box: ## uses bounding box if all four bounds are given, otherwise treats them indivigually
+        ## WARNNNINGGGG this is wrong and compaires bounding box traj to bounding box for query we actually want if the trajecotry is in box. 
+        region = sp.box(lon_min, lat_min, lon_max, lat_max)
+        subset = subset[subset.geometry.intersects(region)]  
+
+    if box == False: #if 
+        if (lon_max is not None) and (lon_min is not None):
+        
+            subset[['minlon', 'minlat', 'maxlon', 'maxlat']] = subset.geometry.bounds
+            subset = subset[(subset.maxlon >= lon_min) & (subset.minlon <= lon_max)]
+        if (lat_max is not None) and (lat_min is not None):
+        
+            subset[['minlon', 'minlat', 'maxlon', 'maxlat']] = subset.geometry.bounds
+            subset = subset[(subset.maxlat >= lat_min) & (subset.minlat <= lat_max)]
+    return subset
+
+

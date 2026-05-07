@@ -187,6 +187,7 @@ def plot_Forcasts(BuoyID:str, dFAD_data, dsforcast: list,startday: int, labels: 
     colors = ['limegreen', 'magenta', 'cyan']
     for i,ds in enumerate(dsforcast):
         ds = ds.query(f"BuoyID == @BuoyID")
+        ds = output.add_starttime(ds)
         ds = ds.query(f"starttime == @starttime").reset_index(drop = True)
         if len(ds) == 0: 
             continue
@@ -222,3 +223,44 @@ def plot_circle_km(ax, radius_km=5, **patch_kwargs):
     )
     ax.add_patch(circle)
     return ax
+
+
+
+def plot_Forecast_from_dFAD_index(Forecast_data:list, dFAD_data, qdata , dFAD_Index:int, startday_int: int, fig, ax):
+    from functions.plotting import Add_bathymetry
+    merged = Forecast_data[0]
+    merged = output.add_starttime(merged)
+    merged = merged.sort_values(['BuoyID', 'starttime', 'Time']).reset_index(drop = True)
+    IDs = merged.BuoyID.unique()
+    sd = startday_int
+    buoyID = IDs[dFAD_Index]
+
+    #getting intial angle and speed to solve error
+    Forecast = merged.query(f"BuoyID == @buoyID")
+    startdays = Forecast.query(f'leadtime == 0').reset_index(drop = True)
+    startday = startdays.at[sd,'Time'].round('min')
+    Forecast = Forecast.query(f'starttime == @startday').reset_index(drop= True)
+    leadtimes = np.arange(Forecast.leadtime.min(), Forecast.leadtime.max(), 0.5)
+    isd = Forecast.initial_speed_dif_mag[0]
+    ilat = Forecast.initial_lat[0]
+    print(ilat, isd)
+    leadtimes = leadtimes[1:]
+    ## solving Q
+    qs = qdata.copy()
+    qs = qs.interp(leadtime = leadtimes, kwargs={"fill_value": "extrapolate"})
+    qs['qsolved'] = qs.initial_lat*ilat + qs.initial_speed_dif_mag*isd + qs.Intercept
+
+    fig, ax = plot_Forcasts(buoyID, dFAD_data, Forecast_data, startday = sd, 
+                            labels = ["All Methods",'cmems', 'OSCAR'], fig= fig,
+                            ax = ax, q=qs, forcastlength= pd.Timedelta(days = 3), 
+                            pastTrajectory = pd.Timedelta(days = 7), shaded_cone=True,
+                            used_forecast= False) #['merged', 'cmems', 'OSCAR'] 
+
+    fig, ax = Add_bathymetry(fig, ax, filepath = r"..\Data\bath.nc", colorbar = False)
+    ax.set_aspect("equal")
+    ax = plot_circle_km(ax, radius_km= 0.0833)
+    ax.set(xlim = [-163.75, -160.66], ylim = [ 4.5,7.75])
+    fig.tight_layout()
+    ax.text(0.02, 0.02, f"initial values\n speed differance: {isd:.2f}\n latitude: {ilat:.2f}", transform=ax.transAxes,
+            ha="left", va="bottom", fontsize=9, bbox=dict(boxstyle="round,pad=0.25", facecolor="white", alpha=0.7, edgecolor="black"))
+    return fig, ax

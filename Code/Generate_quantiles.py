@@ -57,14 +57,14 @@ if plotting == True: # produces figure 4
     import matplotlib.pyplot as plt 
     import matplotlib.gridspec as gridspec
     from matplotlib.ticker import PercentFormatter
-    if False:
+    if True:
         """ 
         Makes three plots 
         1) showing errors as a function of speed_error and the latitude 
         2) Showing the regression (predicted errors on the same data)
         """
         ##________________________________
-        ## FIG4
+        ## FIG5
         fig = plt.figure(figsize=(5,5), dpi = 400)
         gs = gridspec.GridSpec(3, 1)
         ax = fig.add_subplot(gs[-1])
@@ -93,11 +93,11 @@ if plotting == True: # produces figure 4
         ax1.grid(alpha = 0.25)
         ax1.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         fig.tight_layout()
-        output_name  = r'Paper/FIG4.pdf'
+        output_name  = r'Paper/FIG5.png'
         fig.savefig(plot_outputpath + output_name)
-        print('Figure4 Saved to: ' + plot_outputpath +output_name)
+        print('Figure5 Saved to: ' + plot_outputpath +output_name)
     #________________________________________________________
-    if False: 
+    if True: 
         # reloads the output data
         outputs = xr.load_dataset(output_data)
 
@@ -165,9 +165,9 @@ if plotting == True: # produces figure 4
         ax.set_title(f"0.7 Quantile vs latitude and Speed Difference \n Number are amount points in each bin \n Errors at leadtime: {target_leadtime +2} hrs")
         output_name = "Forecast_errors_VS_lat_speed.pdf"
         fig.savefig(plot_outputpath + output_name)
-        print('Figure saved too: ' + plot_outputpath + output_name )
+        print('Figure extra saved too: ' + plot_outputpath + output_name )
 ##____________________
-    if False: #produces figure 5 
+    if True: #produces figure 6
         # need to to get the larget intercelts from the regression
         q  = outputs.sel(leadtime = target_leadtime, q=target_quantile,  method = 'nearest')      
 
@@ -185,7 +185,6 @@ if plotting == True: # produces figure 4
         error_values = q.Intercept.values  + q.initial_lat.values*X + q.initial_speed_dif_mag.values*Y
         fig, ax = plt.subplots(figsize = (6,6), dpi = 400)
         cbar = ax.contourf(X,Y,error_values, levels = 40, cmap='viridis', vmin=25, vmax=100)
-        cbar.set_rasterized(True)
 
 
         ax.pcolor(angle_mesh, speed_mesh, masked_data, facecolor='none', edgecolor='black', linewidth=1)
@@ -209,16 +208,35 @@ if plotting == True: # produces figure 4
         ax.set_ylabel("Initial Speed Difference")
         ax.set_title(f"Perdicted error Based off Inital Speed error and intial latitude\n Quantile: {target_quantile:.2f}\n at leadtime: {target_leadtime} \n  z = { q.Intercept:.2f} +{q.initial_lat:.3f}* lat + {q.initial_speed_dif_mag:.2f} * Speed error ", pad= 20)
         plt.subplots_adjust(top=0.8)
-        output_name = "Paper/FIG5.pdf"
+        output_name = "Paper/FIG6.pdf"
         fig.savefig(plot_outputpath + output_name)
-        print('Figure5 saved to: ' + plot_outputpath + output_name)
+        print('Figure6 saved to: ' + plot_outputpath + output_name)
 
 
 
         R_s = 1 - np.sum((centers_stacked.error_km - centers_stacked.predicted_errors)**2)/np.sum((centers_stacked.error_km - np.mean(centers_stacked.error_km))**2)
         print(f'Corrilation between regression qunatile and observed quantile : {R_s:.2f}')
+    if False:  ## produces figure 7
+        import functions.draw_forecast_cones as cones
+        fc0 = pd.read_csv('parcels/saved_output/Final/cmems_bias_pers_meanremoved_2026.csv')
+        dFADs = gpd.read_parquet('Data/SAT_MI_FAD_cleanedspeeds_2026-01-01_mapped_all.parquet')
+        qdata = xr.load_dataset('Data/regression_quantiles_leadtimes_cmems_bias_pers_2026.nc')
 
-    if True: # produces figure 6
+        fc0.Time = pd.to_datetime(fc0.Time)
+
+        merged_fc0 = opf.merged_dataframe_add_all_columns(fc0, dFADs)
+
+        fig , axs = plt.subplots(1,2, figsize = (10,5), dpi = 400)
+        ax0 , ax1 = axs.flatten()
+        cones.plot_Forecast_from_dFAD_index([merged_fc0], dFADs, qdata, 255, 2, fig, ax0)
+        cones.plot_Forecast_from_dFAD_index([merged_fc0], dFADs, qdata, 278, 1, fig, ax1)
+        output_name = "Paper/FIG7.pdf"
+        fig.savefig(plot_outputpath + output_name)
+        print('Figure7: saved to:'+ plot_outputpath + output_name)
+
+
+
+    if True: # produces figure 8
         #_________________________________
         ## Figure 6: yearly variations 
         # cmems = xr.open_dataset(r'Data\cmems_monthly.nc')
@@ -383,6 +401,10 @@ if plotting == True: # produces figure 4
         x_center = (min(axi.get_position().x0 for axi in top_axes) + max(axi.get_position().x1 for axi in top_axes)) / 2
         y_text = max(min(axi.get_position().y0 for axi in top_axes) - 0.04, 0.01)
         fig.text(x_center, y_text, r'Zonal velocity (m/s)', ha='center', va='top')
-        output_name = "Paper/FIG6.pdf"
+        output_name = "Paper/FIG8.png"
         fig.savefig(plot_outputpath + output_name, bbox_inches='tight')
-        print('Figure6 saved to: ' + plot_outputpath + output_name)
+        print('Figure8 saved to: ' + plot_outputpath + output_name)
+
+        # calc corrilaton between Variance rolling mean and dFAD forecast errors
+        fclt_varts = fclt_daily.merge(varts, how = 'left', on = 'startday')
+        print(fclt_varts['error30day'].corr(fclt_varts['var30day'].shift(3)))
