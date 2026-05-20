@@ -4,6 +4,7 @@ Data/
 *.parquet
 *.nc
 *.zarr
+core_backup/
 
 # Figures and Documentation 
 Figures/ 
