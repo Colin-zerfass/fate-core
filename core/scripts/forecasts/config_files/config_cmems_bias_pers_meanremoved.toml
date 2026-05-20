@@ -1,0 +1,36 @@
+# Data
+output_name = 'cmems_bias_pers_meanremoved_2026'
+
+
+parallel_cores = 128
+
+#Run specifics
+startdate = '2022-01-01'
+enddate = '2025-12-31'
+
+dynamical = true
+currents_file = 'cmems'  #options [cmems, OSCAR]
+forecast_length = 8 #length of Forecasts in Days. ##only changes runtime of model. 
+persistence = true
+persistence_window = 2
+Tau = 0.83 # Days 
+depth = 13.4671 # Options are: [ 0.494   1.5414  2.6457  3.8195  5.0782  6.4406  7.9296  9.573  11.405 13.4671 15.8101 18.4956 21.5988 25.2114 29.4447]
+bias = true
+wind = false 
+
+## from the script Wind_bias_correction.py
+## This solves the equation of U' = a*Uo' + b*W' where U' = U - mean(U) 
+
+## if you want this to not subtract the mean solve the equation Umean = 0 
+# bias corrections
+[GLORYs_correction]
+currents = [0.7821, 0.0896] #a #Testing regression of the bias correction no mean removed
+wind = [0,0] #b 
+Uo_clim_mean = [0.233,  0.0674] #mean(u)
+U_dfad_mean = [0.163768, 0.049398]
+
+## oscar is not set up to run with bias correction with the mean subtracted.... 
+[OSCAR_correction]
+currents = [0.94156209 , 7.33441934e-05] 
+wind = [0.00791801, 4.05632385e-03]
+W_clim_mean = [-6.000 , -0.20591]
