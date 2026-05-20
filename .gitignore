@@ -22,7 +22,7 @@ __pycache__/
 .vscode/
 
 # specific files
-*.bat
+run_forecasts.bat
 
 
 # Figures/
