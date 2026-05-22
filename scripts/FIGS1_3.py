@@ -288,10 +288,10 @@ def FIG3():
             # ax0.plot(data.index/np.timedelta64(24, 'h'), data.Rv, label = "meridianal")
             ax0.plot(data.index/np.timedelta64(24, 'h'), data.Rspeed, label = f"{traj_days[i]} Day Segment")
     if plot_drfiters: 
-        dr = pd.read_csv(settings.DATA_DIR / 'drfiter_ri_autocorr_7days_in_hrs.csv')
+        dr = pd.read_csv(settings.DATA_DIR / 'drifter_ri_downsampled_7days.csv')
         # dr['hours'] = pd.(dr['hours'], unit= )
         ax0.plot(dr.hours/24, dr.autocorr_ri, label = f"{traj_days[i]} Day drifter Segment", zorder = 10, color = 'k')
-        ax0.fill_between(dr.hours/24, dr.autocorr_ri+ dr.errorbars, dr.autocorr_ri - dr.errorbars, color = 'r', alpha = 0.5, zorder = 1)
+        ax0.fill_between(dr.hours/24, dr.ci_low, dr.ci_high, color = 'r', alpha = 0.5, zorder = 1)
         xdata = dr.hours/24
         popt_drifter, _ = curve_fit(func, xdata, dr.autocorr_ri, p0=[1, 1, 0], maxfev=5000)
 
@@ -321,6 +321,6 @@ def FIG3():
     print(f'FIG3 saved to: {FIG3_name}')
 
 if __name__ == '__main__':
-    FIG1()
-    FIG2()
+    # FIG1()
+    # FIG2()
     FIG3()

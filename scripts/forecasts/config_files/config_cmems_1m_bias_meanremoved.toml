@@ -1,0 +1,30 @@
+# Data
+output_name = 'cmems_2026_1m_bias_meanremoved'
+
+
+parallel_cores = 128
+
+#Run specifics
+startdate = '2022-01-01'
+enddate = '2025-12-31'
+
+dynamical = true
+currents_file = 'cmems'  #options [cmems, OSCAR]
+forecast_length = 8 #length of Forecasts in Days. ##only changes runtime of model. 
+persistence = false
+persistence_window = 2
+Tau = 0.83 # Days 
+depth = 15.8101 # Options are: [ 0.494   1.5414  2.6457  3.8195  5.0782  6.4406  7.9296  9.573  11.405 13.4671 15.8101 18.4956 21.5988 25.2114 29.4447]
+bias = true 
+wind = false
+
+# bias corrections
+[GLORYs_correction]
+currents = [0.7714, 0.0725]
+wind = [0, 0] 
+Uo_clim_mean = [0.1868, 0.0745] #mean(u) 
+U_dfad_mean = [0.163768, 0.049398]
+
+[OSCAR_correction]
+currents = [0.94156209 , 7.33441934e-05]
+wind = [0.00791801, 4.05632385e-03]

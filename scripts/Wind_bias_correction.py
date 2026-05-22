@@ -143,15 +143,18 @@ if __name__ == '__main__':
 
     # calcuating what Uo_clim_mean and W_clim_mean should be. 
     GLORYs  = xr.open_dataset(settings.GLORYS_FILE)
-    GLORYs_mean = (GLORYs.sel(time = slice('2021-01-01', '2025-12-31'), depth = 13.4671)
-                    .mean(dim= ['time', 'latitude', 'longitude']))
+    depths = [ 0.494,  5.0782,  13.4671, 29.4447]
+    for d in depths:
+        GLORYs_mean = (GLORYs.sel(time = slice('2021-01-01', '2025-12-31'), depth = d)
+                        .mean(dim= ['time', 'latitude', 'longitude']))
+        print(f'Uo_clim_mean at {d}')
+        print(f'{GLORYs_mean.uo.values :.4f}, {GLORYs_mean.vo.values :.4f}')
+
     ERA5  = xr.open_dataset(settings.ERA5_FILE)
     ERA5_mean = (ERA5.sel(time = slice('2021-01-01', '2025-12-31'))
                     .mean(dim= ['time', 'latitude', 'longitude']))
     print('W_clim_mean')
     print(ERA5_mean.uo.values, ERA5_mean.vo.values)
-    print('Uo_clim_mean')
-    print(GLORYs_mean.uo.values, GLORYs_mean.vo.values)
 
     print('dFAD_mean')
     print(f"U_dfad_mean  = [{longlist.U.mean().real:.6f}, {longlist.U.mean().imag:.6f}]")

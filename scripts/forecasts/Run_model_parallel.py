@@ -39,13 +39,22 @@ if __name__ == '__main__':
         for idx, chunk in enumerate(chunks)
     ]
 
-    if config['dynamical'] == True: 
-        with mp.Pool(processes=n_cores) as pool:
-            results = pool.starmap(Run_model_dynamical, inputs)
+    n_chunks = len(chunks)
 
-    if config['dynamical'] == False: 
+    def run_pool(model_fn):
         with mp.Pool(processes=n_cores) as pool:
-            results = pool.starmap(Run_model_static, inputs)
+            async_results = [pool.apply_async(model_fn, args=inp) for inp in inputs]
+            results = []
+            for n, ar in enumerate(async_results, 1):
+                results.append(ar.get())
+                if n % 10 == 0:
+                    print(f"{n}/{n_chunks} completed")
+        return results
+
+    if config['dynamical']:
+        results = run_pool(Run_model_dynamical)
+    else:
+        results = run_pool(Run_model_static)
 
 
     ## combines ouputs into one csv
