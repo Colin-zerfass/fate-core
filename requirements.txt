@@ -9,3 +9,4 @@ parcels
 zarr
 tomli
 cartopy
+pyarrow

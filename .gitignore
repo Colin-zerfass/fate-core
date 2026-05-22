@@ -1,0 +1,11 @@
+# Python venv, Cashes, and Configs
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+.vscode/
+
+# DATA
+*.csv
+*.nc
+*.parquet

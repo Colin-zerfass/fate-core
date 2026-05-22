@@ -28,7 +28,12 @@ BATHYMETRY_FILE = DATA_DIR / 'bath.nc'
 ####_________________
 ### FIGURE FILE PATHS
 ###___________________
-FIGURES_DIR = ROOT_DIR / 'Figures'
+#making Figures DIR if doesn't exist 
+__figures = 'Figures'
+if not (ROOT_DIR / __figures).is_dir():
+    (ROOT_DIR / __figures).mkdir()
+
+FIGURES_DIR = ROOT_DIR / __figures
 
 __paper = 'Paper_test'
 if not (FIGURES_DIR / __paper).is_dir(): # make DIR to put Paper figures into 
