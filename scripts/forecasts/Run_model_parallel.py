@@ -32,7 +32,7 @@ if __name__ == '__main__':
     # Split the full day range evenly across available cores.
     # Each worker gets a contiguous block of days rather than a calendar month.
     daterange = pd.date_range(totalstartdate, totalenddate, freq="D")
-    chunks = [c for c in np.array_split(daterange, n_cores*1) if len(c) > 0]
+    chunks = [c for c in np.array_split(daterange, n_cores*3) if len(c) > 0]
 
     inputs = [
         (chunk[0], chunk[-1], idx, config_name)
