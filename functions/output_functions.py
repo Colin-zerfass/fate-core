@@ -266,3 +266,10 @@ def merged_dataframe_add_all_columns(forecast:pd.DataFrame, dFAD:gpd.GeoDataFram
     merged =  calc_intial_speed_dif(merged)
     merged = merged.sort_values(['BuoyID', 'starttime', 'Time']).reset_index(drop = True)
     return merged
+
+def RMSE_one_leadtime(dataset, leadtimes_hours: int, dt = 2):
+    lowerbound = leadtimes_hours - dt
+    upperbound = leadtimes_hours + dt
+    forecasts_leadtime = dataset.query('leadtime > @lowerbound').query('leadtime < @upperbound').reset_index(drop = True)
+    forecasts_leadtime['error_km'] = haversine_df(forecasts_leadtime, "lat_true", "lon_true", "lat_forcast", "lon_forcast")
+    return calculate_rmse(forecasts_leadtime) 

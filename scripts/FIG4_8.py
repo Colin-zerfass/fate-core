@@ -40,7 +40,7 @@ import matplotlib.gridspec as gridspec
 from matplotlib.ticker import PercentFormatter
 
 
-if True: # FIG 4
+if False: # FIG 4
 
     data= {
         'No Forecast':     ['No_forecast', 'forestgreen'],
@@ -221,6 +221,69 @@ if True: # FIG 4
     plt.subplots_adjust(bottom=0.1)
     fig.savefig( settings.FIGURES_PAPER_DIR /  "FIG4.pdf")
     print(f'Figure 4 saved to: {settings.FIGURES_PAPER_DIR / 'FIG4.pdf'} ')
+
+if True: # table1 
+    from Wind_bias_correction import Calc_Z, calc_R_anything 
+    # table of wind corrilations at depths 1,5,15,30 
+    # and forecast errors at 24, 7 days
+
+    ##loading the data
+    data = {      
+        '1m' :       'cmems_2026_1m',
+        '5m' :       'cmems_2026_5m', 
+        '15m' :      'cmems_2026', 
+        '30m' :      'cmems_2026_30m', 
+        '1m_bias' :  'cmems_2026_1m_bias_meanremoved', 
+        '5m_bias' :  'cmems_2026_5m_bias_meanremoved', 
+        '15m_bias' : 'cmems_bias_meanremoved_2026', 
+        '30m_bias' : 'cmems_2026_30m_bias_meanremoved', 
+    } 
+    windll = funcs.generate_longlist(ds, extra_columns = ['mapped_u', 'mapped_v', 
+                                                            'mapped_u_winds', 'mapped_v_winds',
+                                                            'mapped_u_1', 'mapped_v_1',
+                                                            'mapped_u_5', 'mapped_v_5',
+                                                            'mapped_u_30', 'mapped_v_30'])
+    windll['Time']   = pd.to_datetime(windll.Time)
+    windll['U']      = windll.x_speed       + 1j*windll.y_speed
+    windll['W']      = windll.mapped_u_winds + 1j*windll.mapped_v_winds
+    windll['Uo_1m']   = windll.mapped_u_1     + 1j*windll.mapped_v_1
+    windll['Uo_5m']   = windll.mapped_u_5     + 1j*windll.mapped_v_5
+    windll['Uo_15m']     = windll.mapped_u       + 1j*windll.mapped_v
+    windll['Uo_30m']  = windll.mapped_u_30    + 1j*windll.mapped_v_30
+
+    ## make table to fill 
+    idxs = ['1m' , '5m' , '15m', '30m']
+    table = pd.DataFrame(columns= [ '|R|', '|Z|', 'phase (Z)', 
+                                   'Error 1 Day' , 'Bias Error 1 Day', 'Error 7 Day' , 'Bias Error 7 Day'
+                                   'U_dFAD'],
+                         index= idxs)
+    table.index.name = 'Depth (m)'
+    for i in idxs: ## calcs corrilation 
+        R = calc_R_anything(windll.U, windll['Uo_' + i])
+        Z = Calc_Z( windll['Uo_' + i], windll.U)
+        table.at[i, '|R|'] = np.abs(R)
+        table.at[i, '|Z|'] = np.abs(Z)
+        table.at[i, 'phase (Z)'] = np.angle(Z,deg  = True)
+    
+
+
+    for i in idxs: 
+        forecasts = pd.read_csv(settings.FORECAST_DIR / (data[i]+ '.csv'))
+        errors1 = opf.RMSE_one_leadtime(forecasts, 1*24)
+        errors7 = opf.RMSE_one_leadtime(forecasts, 7*24 -2)
+        table.at[i, 'Error 1 Day'] = errors1
+        table.at[i, 'Error 7 Day'] = errors7
+
+        forecasts_bias = pd.read_csv(settings.FORECAST_DIR / (data[(i + '_bias' )] + '.csv'))
+        errors1 = opf.RMSE_one_leadtime(forecasts_bias, 1*24)
+        errors7 = opf.RMSE_one_leadtime(forecasts_bias, 7*24 -2)
+        table.at[i, 'Bias Error 1 Day'] = errors1
+        table.at[i, 'Bias Error 7 Day'] = errors7
+        
+    output_name = settings.FIGURES_PAPER_DIR / 'Table1.xlsx'
+    table.to_excel(output_name, float_format='%.4f')
+    print(f'Figure5 Saved to: {output_name}')
+
 
 
 if False: # FIG 5 
