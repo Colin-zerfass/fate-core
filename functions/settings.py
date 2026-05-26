@@ -28,7 +28,16 @@ BATHYMETRY_FILE = DATA_DIR / 'bath.nc'
 ####_________________
 ### FIGURE FILE PATHS
 ###___________________
+<<<<<<< HEAD
 FIGURES_DIR = ROOT_DIR / 'Figures'
+=======
+#making Figures DIR if doesn't exist 
+__figures = 'Figures'
+if not (ROOT_DIR / __figures).is_dir():
+    (ROOT_DIR / __figures).mkdir()
+
+FIGURES_DIR = ROOT_DIR / __figures
+>>>>>>> c97b5263a47fd5ed1f5ba82078362fd321b9ec1e
 
 __paper = 'Paper_test'
 if not (FIGURES_DIR / __paper).is_dir(): # make DIR to put Paper figures into 
@@ -49,4 +58,8 @@ if not (DATA_DIR / __forecast_outputdir).is_dir(): #make DIR for forecast data
     (DATA_DIR/ __forecast_outputdir).mkdir()
     print(f'Make DIR {DATA_DIR/ __forecast_outputdir}')
 
+<<<<<<< HEAD
 FORECAST_DIR = DATA_DIR / __forecast_outputdir
+=======
+FORECAST_DIR = DATA_DIR / __forecast_outputdir
+>>>>>>> c97b5263a47fd5ed1f5ba82078362fd321b9ec1e

@@ -1,0 +1,12 @@
+# Python venv, Cashes, and Configs
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+.vscode/
+Forecast_job.sh
+*.sc.*
+# DATA
+*.csv
+*.nc
+*.parquet

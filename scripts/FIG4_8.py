@@ -40,7 +40,11 @@ import matplotlib.gridspec as gridspec
 from matplotlib.ticker import PercentFormatter
 
 
+<<<<<<< HEAD
 if False: # FIG 4
+=======
+if True: # FIG 4
+>>>>>>> c97b5263a47fd5ed1f5ba82078362fd321b9ec1e
 
     data= {
         'No Forecast':     ['No_forecast', 'forestgreen'],
@@ -222,6 +226,7 @@ if False: # FIG 4
     fig.savefig( settings.FIGURES_PAPER_DIR /  "FIG4.pdf")
     print(f'Figure 4 saved to: {settings.FIGURES_PAPER_DIR / 'FIG4.pdf'} ')
 
+<<<<<<< HEAD
 if True: # table1 
     from Wind_bias_correction import Calc_Z, calc_R_anything 
     # table of wind corrilations at depths 1,5,15,30 
@@ -285,6 +290,8 @@ if True: # table1
     print(f'Figure5 Saved to: {output_name}')
 
 
+=======
+>>>>>>> c97b5263a47fd5ed1f5ba82078362fd321b9ec1e
 
 if False: # FIG 5 
     """ 
