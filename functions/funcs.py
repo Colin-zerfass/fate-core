@@ -1035,3 +1035,20 @@ def Query_dFAD_inclusive(dFAD_ds:gpd.GeoDataFrame,
     return subset
 
 
+def Query_longlist(dFADs_ds: pd.DataFrame,
+                   BuoyID: str | None = None,
+                   Time1: str | pd.Timestamp | None = None, 
+                   Time2: str | pd.Timestamp | None = None) -> pd.DataFrame:
+    subset = dFADs_ds.copy()
+
+    # filter by BuoyID
+    if BuoyID is not None:
+        subset = subset[subset['BuoyID'] == BuoyID]
+
+    # filter by time Range
+    if (Time1 is not None) and (Time2 is not None):
+        Time1 = pd.to_datetime(Time1) if isinstance(Time1, str) else Time1
+        Time2 = pd.to_datetime(Time2) if isinstance(Time2, str) else Time2
+        subset = subset[(subset['Time'] > Time1) & (subset['Time'] < Time2)]
+    return subset.reset_index(drop=True)
+
