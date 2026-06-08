@@ -119,10 +119,11 @@ def FIG2():
     ds = gpd.read_parquet(settings.dFAD_DATA)
 
     data  = funcs.generate_longlist(ds)
+    nyears = (data.Time.max() - data.Time.min()).total_seconds()/3600/24/365
     longlist = data.copy()
 
-    climat = xr.open_dataset(settings.DATA_DIR / r"drifter_monthlymeans_f43a_401f_20bd_U1775085192326.nc")
-    climat = climat.rename({"latitude" : "lat", "longitude": "lon", "U": "uo", "V": "vo"})
+    climat = xr.open_dataset(settings.DATA_DIR / r"drifter_monthlymeans_9c26_64bd_a00e_U1780506785300.nc")
+    climat = climat.rename({"latitude" : "lat", "longitude": "lon", "U": "uo", "V": "vo"}) #eU and eV are errors
     lat_range = np.arange(min(data.lats), max(data.lats), 0.1)
     lon_range = np.arange(min(data.lons), max(data.lons), 0.1)
 
@@ -144,10 +145,10 @@ def FIG2():
 
     mean_array = np.array(mean_array)
     
-    errors = np.percentile(mean_array,95,axis = 0)/3
+    errors = np.percentile(mean_array,95,axis = 0)/nyears
   
-    lat_mean2 = np.mean(Binned_data,axis =1)/3 ##this is non bootstrapping data 
-    lat_mean = np.mean(mean_array,axis = 0)/3
+    lat_mean2 = np.mean(Binned_data,axis =1)/nyears ##this is non bootstrapping data 
+    lat_mean = np.mean(mean_array,axis = 0)/nyears
 
     error_bar = errors - lat_mean
     error_bar[13] = np.mean(error_bar)
@@ -158,7 +159,7 @@ def FIG2():
     month_bins = np.array([1,4,7,10,13])
     longlist['season'] = pd.cut(longlist['month'], month_bins, right = False) # makes it [a,b) months 1-3, 4-6,7-9, 10-12
 
-    def calc_lat_average(longlist):
+    def calc_lat_average(longlist, yearly_profiles = True):
         lat_bins = np.arange(4.5,7.76, 0.25)
         longlist['lat_bin'] = pd.cut(longlist.lats, lat_bins, right = False)
         profiles = pd.DataFrame()
@@ -166,11 +167,29 @@ def FIG2():
             season = longlist[longlist['season'] == bin]
             profile =season.groupby('lat_bin', observed=False)['x_speed'].mean()
             profiles[n+1] = profile
+            ## also get seasons by year
+            if yearly_profiles:
+                for yr in np.sort(season.year.dropna().unique()):
+                    year_data = season[season['year'] == yr]
+                    year_profile = year_data.groupby('lat_bin', observed=False)['x_speed'].mean()
+                    profiles[f'{n+1}_{int(yr)}'] = year_profile
         profiles = profiles.reset_index()
         profiles['lats'] = lat_bins[profiles.index] + np.diff(lat_bins)/2
         return profiles
 
+    def standard_error_profiles(profiles):
+        for s in range(1, 5):
+            year_cols = [c for c in profiles.columns if str(c).startswith(f'{s}_')]
+            if not year_cols:
+                continue
+            yearly_data = profiles[year_cols]
+            std = yearly_data.std(axis=1, ddof=1)
+            n = yearly_data.notna().sum(axis=1)
+            profiles[f'{s}_SE'] = std / np.sqrt(n)
+        return profiles
+    
     profiles = calc_lat_average(longlist)
+    profiles = standard_error_profiles(profiles)
 
     box7 = climat.sel(lat = slice(0, 10), lon = slice(-163.75, -160.5))
     box7 = box7.mean(dim = "lon")
@@ -184,39 +203,48 @@ def FIG2():
     fig, axs = plt.subplots(1,2, figsize = (8,5), dpi = 400)
     ax, ax1 = axs
     miny, maxy = [3, 9]
-    ax.barh(latedges[:-1], lat_mean, height=0.075, xerr=error_bar, ecolor="r", capsize=1.5)
+    ax.barh(latedges[1:-1], lat_mean[1:], height=0.075, xerr=error_bar[1:], ecolor="r", capsize=1.5, alpha = 0.75)
     ax.set_ylabel("Latitude")
-    ax.set_xlabel(r"number of GPS fixs/ year/ 0.1$^{\circ}$ $^2$")
-    ax.set_title("Latitude Variation in number of dFADs")
-    ax.set(ylim = [miny, maxy], xlim = [0,90])
+    ax.set_xlabel(r"number of GPS fixes/ year/ 0.1$^{\circ}$ $^2$")
+    ax.set_xlabel(r"GPS fixes year$^{-1}$ (0.1$^{\circ 2}$ bins)")
+    ax.set_title("Latitude Variation in Number of dFADs")
+    ax.set(ylim = [miny, maxy], xlim = [0,65])
     colors = ['r', 'g', 'b', 'purple']
     titles = ['Jan-Mar' , 'Apr-Jun', 'July-Sep', 'Oct-Dec']
     for i in range(4):
         ax1.plot(profiles[i+1], profiles.lats, c = colors[i], label = titles[i])
-        ax1.plot(box7.uo[i*3:(i+1)*3,:].mean(dim = "ClimatologicalMonth"), box7.lat, c = colors[i], ls = ':', alpha = 0.5)
-    ax1.set(title = 'Zonal Velocity of dFADs',xlabel = 'Zonal Velocity (m/s)', ylabel= 'Latitude', ylim= [miny, maxy], xlim =[-0.5, 0.7])
-    ax1.plot([], [], c='k', ls=':', label='climatology') ## too be added to legend 
-    ax1.legend(loc='upper center', bbox_to_anchor=(3.2/7, -0.1),
-            fancybox=True, shadow=True, ncol=3)
-    text = f'mean     $\\sigma$    \n zonal: {zonalm:0.2f} $\\pm${zonalstd:0.2f} \n meridianal: {merdianalm:0.2f} $\\pm${merdianalstd:0.2f}'
-    ax1.text(0.95,0.05,text,  transform=ax1.transAxes,
-                ha="right", va="bottom", fontsize=9, bbox=dict(boxstyle="round,pad=0.25", facecolor="white", alpha=0.7, edgecolor="black"))
-    for axi in axs: 
-        axi.hlines([7.75, 4.5], -10, 100, color = 'k', alpha = 0.4, ls = '--')
+        ax1.fill_betweenx(profiles.lats, profiles[i+1] - profiles[f'{i+1}_SE'],
+                                  profiles[i+1] + profiles[f'{i+1}_SE'],
+                  color=colors[i], alpha=0.1, edgecolor= 'none')
+        mean_u = box7.uo[i*3:(i+1)*3,:].mean(dim = "ClimatologicalMonth")
+        err_u = box7.eU[i*3:(i+1)*3,:].mean(dim = "ClimatologicalMonth")
+        ax1.plot(mean_u, box7.lat, c = colors[i], ls = '--', alpha = 0.5)
+        ax1.fill_betweenx(box7.lat, mean_u - err_u, mean_u + err_u, 
+                          color= colors[i], alpha=0.1, edgecolor= 'none')
 
-    ax1.arrow(-0.2, 4.0, -0.2, 0.0,   width=0.05, head_width=0.1, 
+    ax1.set(title = 'Zonal Velocity of dFADs',xlabel = 'Zonal Velocity (m/s)', ylabel= 'Latitude', ylim= [miny, maxy], xlim =[-0.5, 0.7])
+    ax1.plot([], [], c='k', ls='--', label='climatology') ## too be added to legend 
+    ax1.legend(loc='upper center', bbox_to_anchor=(3.2/7, -0.12),
+            fancybox=True, shadow=True, ncol=3)
+    # text = f'mean     $\\sigma$    \n zonal: {zonalm:0.2f} $\\pm${zonalstd:0.2f} \n meridonal: {merdianalm:0.2f} $\\pm${merdianalstd:0.2f}'
+    # ax1.text(0.95,0.05,text,  transform=ax1.transAxes,
+    #             ha="right", va="bottom", fontsize=9, bbox=dict(boxstyle="round,pad=0.25", facecolor="white", alpha=0.7, edgecolor="black"))
+    for axi in axs: 
+        axi.hlines([7.75, 4.5], -10, 100, color = 'k', alpha = 0.4, ls = ':')
+
+    ax1.arrow(0.3, 3.5, -0.2, 0.0,   width=0.05, head_width=0.1, 
         head_length=0.05, length_includes_head=True, color="black")
-    ax1.text(-0.3, 4.3, "SEC", fontsize=9, ha="center", va="top")
+    ax1.text(0.2, 3.8, " Westward SEC", fontsize=9, ha="center", va="top")
 
 
     ax1.arrow(-0.4, 6, 0.2, 0.0,   width=0.05, head_width=0.1, 
         head_length=0.05, length_includes_head=True, color="black")
-    ax1.text(-0.3, 6.3, "NECC", fontsize=9, ha="center", va="top")
+    ax1.text(-0.3, 6.3, " Eastward NECC", fontsize=9, ha="center", va="top")
 
-    ax.text(40, 7.8, 'Geofenced Boundry', ha = 'center', fontsize = 7, alpha = 0.6)
+    ax.text(40, 7.8, 'Geofenced Boundary', ha = 'center', fontsize = 7, alpha = 0.6)
     fig.tight_layout()
-    ax.text(-0.1, 1.1, 'a)', transform=ax.transAxes, fontsize=12, fontweight='bold', va='top')
-    ax1.text(-0.1, 1.1, 'b)', transform=ax1.transAxes, fontsize=12, fontweight='bold', va='top')
+    ax.text(-0.1, 1.1, 'a)', transform=ax.transAxes, fontsize=12, va='top')
+    ax1.text(-0.1, 1.1, 'b)', transform=ax1.transAxes, fontsize=12, va='top')
     FIG2name = settings.FIGURES_PAPER_DIR / 'FIG2.pdf'
 
     fig.savefig(FIG2name, format = 'pdf')
@@ -322,5 +350,5 @@ def FIG3():
 
 if __name__ == '__main__':
     # FIG1()
-    # FIG2()
-    FIG3()
+    FIG2()
+    # FIG3()

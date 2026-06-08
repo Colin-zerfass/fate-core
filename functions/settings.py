@@ -15,6 +15,7 @@ DATA_DIR = ROOT_DIR / 'Data' # Parent DIR of all Data
 #dFAD data
 RAWDATA_DIR =   DATA_DIR / 'Palmyra_Data_CSV' ## Location of Raw dFAD data (colection of qunaterly data download sets)
 dFAD_DATA =     DATA_DIR / 'SAT_MI_FAD_cleanedspeeds_2026-01-01_mapped_all.parquet'
+DRIFTER_DATA = DATA_DIR / 'Drifter_cleaned_2026_06.parquet'
 
 #model data
 GLORYS_FILE  = DATA_DIR / 'cmems_2021_2026.nc'

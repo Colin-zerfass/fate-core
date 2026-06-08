@@ -254,8 +254,7 @@ if True: # table1
     ## make table to fill 
     idxs = ['1m' , '5m' , '15m', '30m']
     table = pd.DataFrame(columns= [ '|R|', '|Z|', 'phase (Z)', 
-                                   'Error 1 Day' , 'Bias Error 1 Day', 'Error 7 Day' , 'Bias Error 7 Day'
-                                   'U_dFAD'],
+                                   'Error 1 Day' , 'Bias Error 1 Day', 'Error 7 Day' , 'Bias Error 7 Day'],
                          index= idxs)
     table.index.name = 'Depth (m)'
     for i in idxs: ## calcs corrilation 
@@ -282,7 +281,11 @@ if True: # table1
         
     output_name = settings.FIGURES_PAPER_DIR / 'Table1.xlsx'
     table.to_excel(output_name, float_format='%.4f')
-    print(f'Figure5 Saved to: {output_name}')
+    import dataframe_image as dfi
+    # Export table image with floats rounded to 3 decimal places
+    table = table.style.format(precision=3)
+    dfi.export(table, settings.FIGURES_PAPER_DIR / 'Table1.png')  
+    print(f'Table1 Saved to: {output_name}')
 
 
 if False: # FIG 5 
