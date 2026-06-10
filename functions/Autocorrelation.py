@@ -326,14 +326,14 @@ class Powerspectrum:
         return psd
         
 def calc_powerspectrum(dFADs: gpd.GeoDataFrame, segment_length: int, interp_dt = 4 , 
-                       maxdt = 48, method = 'welch', window = 'hann_periodic', dimention = 'u')-> tuple[pd.DataFrame, list[int]]:
+                       maxdt = 48, method = 'welch', window = 'hann_periodic', dimention = 'u', u = 'x_speed' , v = 'y_speed')-> tuple[pd.DataFrame, list[int]]:
     freqs= []
     psds = []
     trajidx = []
     VARS = []
     idx = 0
     for dFAD in range(len(dFADs)):
-        traj = dFAD_trajectry(dFADs, index= dFAD )
+        traj = dFAD_trajectry(dFADs, index= dFAD, u = u , v =v )
         segments = traj.splice_dt_toolarge(maxdt=maxdt)
         for seg in segments:
             if len(seg.t) <= 1:
@@ -358,4 +358,4 @@ def calc_powerspectrum(dFADs: gpd.GeoDataFrame, segment_length: int, interp_dt =
                 #print(np.trapezoid(psd,f), data.var())
                 idx += 1
             
-    return pd.DataFrame({'freq': freqs, 'PSD': psds, 'VARS': VARS}, index = trajidx)    
+    return pd.DataFrame({'freq': freqs, 'PSD': psds, 'VARS': VARS}, index = trajidx)

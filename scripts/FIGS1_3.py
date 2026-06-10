@@ -264,7 +264,7 @@ def FIG3():
     ntrajs = []
     bootstrap = True
     n_resamples = 1000
-    blocksize = 50
+    blocksize = 100
     #________________________
     for i , days in enumerate(traj_days): 
         data, ntraj = auto.calc_autocorrilation(ds, days, Method = method, maxdt = 26, u = us[i], v = vs[i])
@@ -329,20 +329,24 @@ def FIG3():
     window ='hann_periodic' #hann_periodic
     psds_dFADs_u = auto.calc_powerspectrum(dFADs=ds, segment_length= 7, method=method, dimention= 'u', window= window)
     psds_drifters_u = auto.calc_powerspectrum(dFADs=drifters, segment_length= 7, interp_dt= 4, method=method, dimention= 'u', window= window)
-
-    psds_dFADs_v = auto.calc_powerspectrum(dFADs=ds, segment_length= 7, method=method, dimention= 'v', window= window)
-    psds_drifters_v = auto.calc_powerspectrum(dFADs=drifters, segment_length= 7, interp_dt= 4, method=method, dimention= 'v', window= window)
-
     mean_dFADs_u = psds_dFADs_u.groupby('freq', observed = False)['PSD'].mean().reset_index()
     mean_drifters_u = psds_drifters_u.groupby('freq', observed = False)['PSD'].mean().reset_index()
 
+    psds_dFADs_v = auto.calc_powerspectrum(dFADs=ds, segment_length= 7, method=method, dimention= 'v', window= window)
+    psds_drifters_v = auto.calc_powerspectrum(dFADs=drifters, segment_length= 7, interp_dt= 4, method=method, dimention= 'v', window= window)
     mean_dFADs_v = psds_dFADs_v.groupby('freq', observed = False)['PSD'].mean().reset_index()
     mean_drifters_v = psds_drifters_v.groupby('freq', observed = False)['PSD'].mean().reset_index()
+
+    psds_model_u = auto.calc_powerspectrum(dFADs=ds, segment_length=7, method=method, dimention='u', window= window, u = 'mapped_u')
+    psds_model_v = auto.calc_powerspectrum(dFADs=ds, segment_length=7, method=method, dimention='u', window= window, u = 'mapped_v')
+    mean_model_u = psds_model_u.groupby('freq', observed = False)['PSD'].mean().reset_index()
+    mean_model_v = psds_model_v.groupby('freq', observed = False)['PSD'].mean().reset_index()
 
     # Zonal (u) direction
     ax1.plot(mean_dFADs_u.freq[:]*86400, mean_dFADs_u.PSD[:]/86400, label = 'dFADs', color = 'g')
     # ax1.fill_between(std_dFADs_u.freq, mean_dFADs_u.PSD - 10**std_dFADs_u.PSD_LOG,  mean_dFADs_u.PSD  + 10**std_dFADs_u.PSD_LOG, color = 'b', alpha = 0.25)
     ax1.plot(mean_drifters_u.freq[:]*86400, mean_drifters_u.PSD[:]/86400, label = 'Drifters', color = 'k')
+    ax1.plot(mean_model_u.freq[:]*86400, mean_model_u.PSD[:]/86400, label = 'Model 15m')
 
     ax1.set_xlim(mean_dFADs_u.freq[0]*86400 ,mean_dFADs_u.freq.iloc[-1]*86400)
     ax1.set_yscale('log')
@@ -356,6 +360,7 @@ def FIG3():
     # Meridional (v) direction
     ax2.plot(mean_dFADs_v.freq[:]*86400, mean_dFADs_v.PSD[:]/86400, label = 'dFADs', color = 'g')
     ax2.plot(mean_drifters_v.freq[:]*86400, mean_drifters_v.PSD[:]/86400, label = 'Drifters', color = 'k')
+    ax2.plot(mean_model_v.freq[:]*86400, mean_model_v.PSD[:]/86400, label = 'Model 15m')
 
     ax2.set_xlim(mean_dFADs_v.freq[0]*86400 ,mean_dFADs_v.freq.iloc[-1]*86400)
     ax2.set_yscale('log')
@@ -413,5 +418,5 @@ def Fig_appendex():
 if __name__ == '__main__':
     # FIG1()
     # FIG2()
-    #FIG3()
-    Fig_appendex()
+    FIG3()
+    # Fig_appendex()
