@@ -39,23 +39,22 @@ def OneTrajectory(ds,index, ax, window:int = None , itime:int =None, **kwargs):
     ax.set_ylabel("latitude")
     return ax
 
-def Plotting(ds, amount):
+def Plotting(ds, amount, ax, **Kwargs):
     """Plots the first n "amount" from the dataset"""
-    fig, ax = plt.subplots()
     for p in range(0,amount):
         line = ds.at[p,'geometry']
         if line == None: 
             continue
         x,y = line.xy
         name = ds.at[p,'BuoyName']
-        ax.plot(x,y,label = name)
+        ax.plot(x,y,label = name, **Kwargs)
     ax.set_xlabel("Longitude")
     ax.set_ylabel("latitude")
     box = ax.get_position()
     ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
     ax.scatter(-162.078333, 5.883611,  s = 20,color = "r", label = "Palymra", marker = "*")
     ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-    return fig , ax
+    return ax
 
 def AllTrajectories(ds,amount,OutputPath, id = bool):
     """Plots all data in the data set with the "amount" being how many trajectories on each plot, Saves them to specifies output folder"""
@@ -64,17 +63,19 @@ def AllTrajectories(ds,amount,OutputPath, id = bool):
     its = length//amount
     rem = length%amount
     for n in range(0,its): ## amount of full plots to be made 
+        fig, ax = plt.subplots()
         i = n*amount
         data  = ds[i:i+amount]
         data = data.reset_index()
-        fig, ax = Plotting(data,amount=amount)
+        ax = Plotting(data,amount=amount, ax =ax)
         Palmyra_plot(ax)
         fig.savefig(OutputPath+f"_{n}.png")
 
     if rem > 0: 
+        fig, ax = plt.subplots()
         data = ds[-rem:]
         data = data.reset_index()
-        fig, ax = Plotting(data,amount=rem)
+        fig, ax = Plotting(data,amount=rem, ax= ax)
         fig.savefig(OutputPath+f"_extra.png")
 
 def Palmyra_obj():

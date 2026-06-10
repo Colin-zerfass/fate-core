@@ -112,8 +112,6 @@ def FIG1():
     fig.savefig(FIG1filename , format = 'pdf')
     print(f'saved Figure 1 to : {FIG1filename}')
 
-
-
 def FIG2():
     print('Starting FIG2')
     ds = gpd.read_parquet(settings.dFAD_DATA)
@@ -379,10 +377,41 @@ def FIG3():
     fig.savefig(FIG3_name)
     print(f'FIG3 saved to: {FIG3_name}')
 
+def Fig_appendex(): 
+    drifters = gpd.read_parquet(settings.DRIFTER_DATA)
+    longlist = funcs.generate_longlist(drifters)
+    maxtime = longlist.Time.max()
+    mintime = longlist.Time.min()
+    # fig, ax = plt.subplots(1,2)
+    #ax0, ax1 = ax.flatten() 
+    fig = plt.figure(figsize=(12,4), dpi = 300)
+    gs = fig.add_gridspec(1,2, width_ratios = (2.8,1), wspace=0)
 
+    ax0 = fig.add_subplot(gs[0])
+    ax1 = fig.add_subplot(gs[1])
+    
+    ax0 = plot.Plotting(drifters, len(drifters), ax0, linewidth=0.75,)
+    ax0.get_legend().remove()
+    ax0.set_ylim(-8, 35)
+    ax0.set_xlim(-210, -100)
+    ax0.set_aspect('equal')
+    ax0.grid(alpha = 0.25)
+    ax0.set_title(f'Drifter Trajectories \n {mintime.date()} - {maxtime.date()}')
 
+    ax1 = plot.Plotting(drifters, len(drifters), ax1 , linewidth=0.75)
+    ax1.set_ylim(4.5, 7.75)
+    ax1.set_xlim(-163.75, -160.6)
+    ax1.set_aspect('equal')
+    ax1.grid(alpha = 0.25)
+    ax1.get_legend().remove()
+    ax1.set_title(f'Drifters within dFAD Geofenced Area')
+
+    FIG_appendex_name = settings.FIGURES_PAPER_DIR/'Appendex1.png'
+    fig.savefig(FIG_appendex_name)
+    print(f'FIG Appendex 1 saved to : {FIG_appendex_name}')
 
 if __name__ == '__main__':
     # FIG1()
     # FIG2()
-    FIG3()
+    #FIG3()
+    Fig_appendex()

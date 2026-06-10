@@ -37,6 +37,7 @@ def combine_all_drifter_files(dir = settings.DATA_DIR / 'Drifters'):
 
 def csv_parquet(data:pd.DataFrame, add_min_max_times = True) -> gpd.GeoDataFrame:
     data['Timestamp'] = pd.to_datetime(data['Timestamp'])
+    data['Longitude'] = data['Longitude'] - 360
     if add_min_max_times: 
         data["MinOfTimes"] = data.groupby(["BuoyName"])['Timestamp'].transform("min")
         data["MaxOfTimes"] = data.groupby(["BuoyName"])['Timestamp'].transform("max")
