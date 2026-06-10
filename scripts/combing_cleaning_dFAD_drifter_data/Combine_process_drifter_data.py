@@ -63,7 +63,17 @@ def csv_parquet(data:pd.DataFrame, add_min_max_times = True) -> gpd.GeoDataFrame
     data, _delx, _dely = funcs.add_distance_collumns(data)
     data = funcs.add_delta_time_collums(data)
     data = cleaning.Add_x_y_speed_collums_TimeStamp(data)
-
+    # remove initial(first point) point from the columns TimeStamp , geometry,
+    Timestamp_list  = []
+    lines = []
+    for n in range(len(data)):
+        timestamp = data.at[n, 'TimeStamp']
+        Timestamp_list.append(timestamp[1:])
+        line = data.at[n,'geometry']
+        new_line = sp.geometry.LineString(line.coords[1:])
+        lines.append(new_line)
+    data['TimeStamp'] = Timestamp_list
+    data['geometry'] = lines
     data.to_parquet(settings.DATA_DIR/ 'Drifter_cleaned_2026_06.parquet')
     return data
 

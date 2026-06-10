@@ -252,77 +252,69 @@ def FIG2():
 
 def FIG3():
     print('Starting FIG3')
+    from matplotlib.ticker import ScalarFormatter
     import functions.Autocorrelation as auto 
 
     ds = gpd.read_parquet(settings.dFAD_DATA)
-    traj_days = [7]
+    drifters = gpd.read_parquet(settings.DRIFTER_DATA)
+    # Pramaters_____________
+    traj_days = [7,7] #7,7]
+    us = ['x_speed', 'mapped_u'] #, 'mapped_u', 'mapped_u_30']
+    vs = ['y_speed', 'mapped_v'] # , 'mapped_v', 'mapped_v_30']
     method = 'Vector' #Vector or Series 
     datas = []
     ntrajs = []
     bootstrap = True
     n_resamples = 1000
-    for days in traj_days: 
-        data, ntraj = auto.calc_autocorrilation(ds, days, Method = method, maxdt = 26)
-        if bootstrap == True:
+    blocksize = 50
+    #________________________
+    for i , days in enumerate(traj_days): 
+        data, ntraj = auto.calc_autocorrilation(ds, days, Method = method, maxdt = 26, u = us[i], v = vs[i])
+        if bootstrap:
             print('starting bootstrapping')
-            samples = []
-            for s in range(n_resamples): 
-                sample_index = np.random.choice(data.index.max()+1, data.index.max()+1, replace = True)
-                sample = data.loc[sample_index]
-                sample = sample.groupby('Tau').mean()
-                sample = sample.reset_index(drop = False)
-                samples.append(sample)
-            data = pd.concat(samples)
-        groupeddata  = data.groupby("Tau").mean()
-        groupeddata['95th'] = data.groupby('Tau').quantile(0.95)
-        groupeddata['5th'] = data.groupby('Tau').quantile(0.05)
-        datas.append(groupeddata)
+            data = auto.block_bootstrap(data, n_resamples,blocksize)
+            #data = auto.interp_results(data)
+        datas.append(data)
         ntrajs.append(len(ntraj))
+    ## Autocorrilation of drifters 
+    data, ntraj = auto.calc_autocorrilation(drifters, 7, Method = method, maxdt= 26, dt = 1)
+    if bootstrap: 
+        print('starting bootstrapping')
+        data = auto.block_bootstrap(data,n_resamples,blocksize)
+        data = auto.interp_results(data)
+    datas.append(data)
+    ntrajs.append(len(ntraj))
 
-
+    #plotting
+    exponetial = False
+    colors = ['g', 'b', 'k', 'k']
+    labels = ['dFADs', 'GLORYs 15m', 'Drifters'] #'GLORYs_5m', 'GLORYs 30m',
+    import matplotlib.gridspec as gridspec
     from scipy.optimize import curve_fit
     def func(x, a,b,c):
         return a*np.exp(-x/b)+c
+    
+    # fig ,axs = plt.subplots(1,3, figsize = (6,4), dpi = 300)
+    # ax0, ax1, ax2 = axs
+    fig = plt.figure(figsize=(6,6), dpi = 300)
+    gs = gridspec.GridSpec(2, 2, hspace=0.6)
+    ax0 = fig.add_subplot(gs[0,:])
+    ax1 = fig.add_subplot(gs[1,0])
+    ax2 = fig.add_subplot(gs[1,1], sharey = ax1)
 
-    exponetial = True
-    plot_drfiters = True
-
-        
-    import matplotlib.gridspec as gridspec
-    # fig = plt.figure(figsize=(6,3), dpi = 300)
-    # gs = gridspec.GridSpec(1, 2, width_ratios=[3,1])
-    # ax0 = fig.add_subplot(gs[0,0])
-    fig ,ax0 = plt.subplots(figsize = (6,4), dpi = 300)
-
-    labels_uivi = ['zonal', 'meridianal']
-    colors = ['g', 'k']
-    if method == 'Vector': 
-        # for i,data in enumerate(datas_ui):
-        #     ax0.plot(data.index/np.timedelta64(24, 'h'), data.R, label =labels_uivi[i])
-        for i,data in enumerate(datas):
-            ## also fit exponetials to these 
-            xdata = data.index / np.timedelta64(24, 'h')
-            popt, _ = curve_fit(func, xdata, data.R, p0=[1, 1, 0], maxfev=5000)
-            xfit = np.linspace(0, xdata.max(), 200)
-            if exponetial:
-                ax0.plot(xfit, func(xfit, *popt), linestyle='--', color=colors[i], alpha=0.8,
-                        label=f"{traj_days[i]} Day Fit (T={popt[1]:.2f}d)")
-            ax0.plot(data.index/np.timedelta64(24, 'h'), data.R, label = f"{traj_days[i]} Day Segment", zorder = 10, color = colors[i])
-            if bootstrap:
-                ax0.fill_between(data.index/np.timedelta64(24, 'h'), data['95th'], data['5th'], color = 'r', label = 'Errors 5th-95th', alpha = 0.5, zorder = 1)
-    if method == 'Series':
-        for i, data in enumerate(datas):
-            # ax0.plot(data.index/np.timedelta64(24, 'h'), data.Ru, label = "zonal")
-            # ax0.plot(data.index/np.timedelta64(24, 'h'), data.Rv, label = "meridianal")
-            ax0.plot(data.index/np.timedelta64(24, 'h'), data.Rspeed, label = f"{traj_days[i]} Day Segment")
-    if plot_drfiters: 
-        dr = pd.read_csv(settings.DATA_DIR / 'drifter_ri_downsampled_7days.csv')
-        # dr['hours'] = pd.(dr['hours'], unit= )
-        ax0.plot(dr.hours/24, dr.autocorr_ri, label = f"{traj_days[i]} Day drifter Segment", zorder = 10, color = 'k')
-        ax0.fill_between(dr.hours/24, dr.ci_low, dr.ci_high, color = 'r', alpha = 0.5, zorder = 1)
-        xdata = dr.hours/24
-        popt_drifter, _ = curve_fit(func, xdata, dr.autocorr_ri, p0=[1, 1, 0], maxfev=5000)
-
+    for i,data in enumerate(datas):
+        ## also fit exponetials to these 
+        xdata = data.index / np.timedelta64(24, 'h')
+        popt, _ = curve_fit(func, xdata, data.R, p0=[1, 1, 0], maxfev=5000)
+        xfit = np.linspace(0, xdata.max(), 200)
+        if exponetial:
+            ax0.plot(xfit, func(xfit, *popt), linestyle='--', color=colors[i], alpha=0.8,
+                    label=f"{traj_days[i]} Day Fit (T={popt[1]:.2f}d)")
+        ax0.plot(data.index/np.timedelta64(24, 'h'), data.R, label = labels[i], zorder = 10, color = colors[i])
+        if bootstrap:
+            ax0.fill_between(data.index/np.timedelta64(24, 'h'), data['R_025'], data['R_975'], 
+                             color = 'r', label = '95th CI', alpha = 0.25, zorder = 1, linewidth = 0 )
+    fig.subplots_adjust(hspace=0.35)
     x = np.linspace(0,12, 100)
     ax0.set_xlim(0,7)
     ax0.set_ylabel(r"$R(\tau)$", fontsize = 14)
@@ -331,24 +323,66 @@ def FIG3():
     ax0.minorticks_on()
     ax0.set_title(f"Autocorrelation of dFAD and drifter")
 
+    handles, labels = ax0.get_legend_handles_labels()
+    by_label = dict(zip(labels, handles))
+    ax0.legend(by_label.values(), by_label.keys(), fancybox = True, shadow = True)
 
-    # ax1 = fig.add_subplot(gs[0,1])
-    # ax1.axis("off")
-    # ax1.text(-0.3,0.5, r"$R_i(\tau) = \frac{\overline{\left(U_i(t) - \overline{U}_i\right)\cdot\left(U_i(t+\tau) - \overline{U}_i\right)}}{\sigma_i^2}$",
-    #           fontdict={"fontsize" : 15})
-    # ax1.text(-0.3,0.9, f"dFAD Trajectory segements:\n" + "".join(f"{a}" for a in ntrajs),
-    #           fontdict={"fontsize" : 15})
-    # ax1.text(-0.3,0.75, f"Segment length:\n" + "".join(f"{a}" for a in traj_days), #traj_days 
-    #           fontdict={"fontsize" : 15})
-    # ax0.text(0.6,0.6, fr"drifter $\tau$: {popt_drifter[1]:.3f} days" + '\n' rf"dFADs $\tau$: {popt[1]:.3f} days",
-    #           fontdict={"fontsize" : 13}, transform = ax0.transAxes)
+    method ='fft'
+    window ='hann_periodic' #hann_periodic
+    psds_dFADs_u = auto.calc_powerspectrum(dFADs=ds, segment_length= 7, method=method, dimention= 'u', window= window)
+    psds_drifters_u = auto.calc_powerspectrum(dFADs=drifters, segment_length= 7, interp_dt= 4, method=method, dimention= 'u', window= window)
+
+    psds_dFADs_v = auto.calc_powerspectrum(dFADs=ds, segment_length= 7, method=method, dimention= 'v', window= window)
+    psds_drifters_v = auto.calc_powerspectrum(dFADs=drifters, segment_length= 7, interp_dt= 4, method=method, dimention= 'v', window= window)
+
+    mean_dFADs_u = psds_dFADs_u.groupby('freq', observed = False)['PSD'].mean().reset_index()
+    mean_drifters_u = psds_drifters_u.groupby('freq', observed = False)['PSD'].mean().reset_index()
+
+    mean_dFADs_v = psds_dFADs_v.groupby('freq', observed = False)['PSD'].mean().reset_index()
+    mean_drifters_v = psds_drifters_v.groupby('freq', observed = False)['PSD'].mean().reset_index()
+
+    # Zonal (u) direction
+    ax1.plot(mean_dFADs_u.freq[:]*86400, mean_dFADs_u.PSD[:]/86400, label = 'dFADs', color = 'g')
+    # ax1.fill_between(std_dFADs_u.freq, mean_dFADs_u.PSD - 10**std_dFADs_u.PSD_LOG,  mean_dFADs_u.PSD  + 10**std_dFADs_u.PSD_LOG, color = 'b', alpha = 0.25)
+    ax1.plot(mean_drifters_u.freq[:]*86400, mean_drifters_u.PSD[:]/86400, label = 'Drifters', color = 'k')
+
+    ax1.set_xlim(mean_dFADs_u.freq[0]*86400 ,mean_dFADs_u.freq.iloc[-1]*86400)
+    ax1.set_yscale('log')
+    ax1.set(xlabel= 'frequency [day$^{-1}$]', ylabel= 'PSD   m$^2$ s$^{-2}$ c.p.d $^{-1}$ ')
+    ax1.set_title('Zonal')
+    ax1.set_xscale('log')
+    ax1.xaxis.set_major_formatter(ScalarFormatter())
+    ax1.set_xticks([0.25, 0.5, 1.0 , 2])
+    ax1.grid(True, which='both', alpha=0.2)
+
+    # Meridional (v) direction
+    ax2.plot(mean_dFADs_v.freq[:]*86400, mean_dFADs_v.PSD[:]/86400, label = 'dFADs', color = 'g')
+    ax2.plot(mean_drifters_v.freq[:]*86400, mean_drifters_v.PSD[:]/86400, label = 'Drifters', color = 'k')
+
+    ax2.set_xlim(mean_dFADs_v.freq[0]*86400 ,mean_dFADs_v.freq.iloc[-1]*86400)
+    ax2.set_yscale('log')
+    ax2.set(xlabel= 'frequency [day$^{-1}$]') #ylabel= 'PSD   m$^2$ s$^{-2}$ Hz$^{-1}$'
+    ax2.legend()
+    ax2.set_title('Meridional')
+    ax2.tick_params(labelleft=False)
+    ax2.set_xscale('log')
+    ax2.xaxis.set_major_formatter(ScalarFormatter())
+    ax2.grid(True, which='both', alpha=0.2)
+    ax2.set_xticks([0.25, 0.5, 1.0 , 2])
+
+    shared_ax = fig.add_subplot(gs[1, :], frameon=False)
+    shared_ax.set_title("Mean Power Spectral Density", pad = 20)
+    shared_ax.tick_params(labelcolor='none',top=False, bottom=False, left=False, right=False)
     fig.tight_layout()
-    ax0.legend(fancybox = True, shadow = True)
-    FIG3_name  = settings.FIGURES_PAPER_DIR / 'FIG3.pdf'
+
+    FIG3_name  = settings.FIGURES_PAPER_DIR / 'FIG3.png'
     fig.savefig(FIG3_name)
     print(f'FIG3 saved to: {FIG3_name}')
 
+
+
+
 if __name__ == '__main__':
     # FIG1()
-    FIG2()
-    # FIG3()
+    # FIG2()
+    FIG3()
