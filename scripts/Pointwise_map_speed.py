@@ -55,7 +55,9 @@ print('OSCAR Done')
 print('starting ERA5')
 dFADs = Add_interp_currents(dFADs, era.vo, era.uo, tag = '_winds')
 print('ERA5 Done')
-
+print('Starting Stokes')
+dFADs = Add_interp_currents(dFADs, era.vst, era.ust, tag = '_stokes')
+print('Stokes Done')
 
 ## interpolates at a range of depths
 print('starting 0.5m ')

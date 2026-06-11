@@ -68,6 +68,8 @@ if __name__ == '__main__':
         'CMEMS_5m':  'Uo_5',
         'GLORYs':    'Uo',
         'CMEMS_30m': 'Uo_30',
+        'stokes' : 'Ustokes', 
+        'GLORYs + stokes' : 'U_st' 
     }
 
 
@@ -77,7 +79,8 @@ if __name__ == '__main__':
                                                             'mapped_u_winds', 'mapped_v_winds',
                                                             'mapped_u_1', 'mapped_v_1',
                                                             'mapped_u_5', 'mapped_v_5',
-                                                            'mapped_u_30', 'mapped_v_30'])
+                                                            'mapped_u_30', 'mapped_v_30',
+                                                            'mapped_u_stokes', 'mapped_v_stokes'])
     longlist['Time']   = pd.to_datetime(longlist.Time)
     longlist['U']      = longlist.x_speed       + 1j*longlist.y_speed
     longlist['W']      = longlist.mapped_u_winds + 1j*longlist.mapped_v_winds
@@ -86,6 +89,8 @@ if __name__ == '__main__':
     longlist['Uo_5']   = longlist.mapped_u_5     + 1j*longlist.mapped_v_5
     longlist['Uo_30']  = longlist.mapped_u_30    + 1j*longlist.mapped_v_30
     longlist['Uoscar'] = longlist.mapped_u_oscar + 1j*longlist.mapped_v_oscar
+    longlist['Ustokes'] = longlist.mapped_u_stokes + 1j*longlist.mapped_v_stokes
+    longlist['U_st'] = longlist.Ustokes + longlist.Uo_30
 
     #longlist = longlist[longlist.Time < pd.Timestamp('2025-07-01')]
 

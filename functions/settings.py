@@ -20,7 +20,7 @@ DRIFTER_DATA = DATA_DIR / 'Drifter_cleaned_2026_06.parquet'
 #model data
 GLORYS_FILE  = DATA_DIR / 'cmems_2021_2026.nc'
 OSCAR_FILE  = DATA_DIR / 'OSCAR_combined_2021_2026.nc'
-ERA5_FILE   = DATA_DIR / 'ERA5_10m_winds_2021_2026.nc' 
+ERA5_FILE   = DATA_DIR / 'ERA5_10m_winds_Stokes_2021_2026.nc' 
 
 # extra 
 BATHYMETRY_FILE = DATA_DIR / 'bath.nc'
