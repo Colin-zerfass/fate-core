@@ -68,6 +68,8 @@ if __name__ == '__main__':
         'CMEMS_5m':  'Uo_5',
         'GLORYs':    'Uo',
         'CMEMS_30m': 'Uo_30',
+        'CMEMS_55m': 'Uo_55',
+        'CMEMS_110m': 'Uo_110',
         'stokes' : 'Ustokes', 
         'GLORYs + stokes' : 'U_st' 
     }
@@ -80,6 +82,8 @@ if __name__ == '__main__':
                                                             'mapped_u_1', 'mapped_v_1',
                                                             'mapped_u_5', 'mapped_v_5',
                                                             'mapped_u_30', 'mapped_v_30',
+                                                            'mapped_u_55', 'mapped_v_55',
+                                                            'mapped_u_110', 'mapped_v_110',
                                                             'mapped_u_stokes', 'mapped_v_stokes'])
     longlist['Time']   = pd.to_datetime(longlist.Time)
     longlist['U']      = longlist.x_speed       + 1j*longlist.y_speed
@@ -88,6 +92,8 @@ if __name__ == '__main__':
     longlist['Uo_1']   = longlist.mapped_u_1     + 1j*longlist.mapped_v_1
     longlist['Uo_5']   = longlist.mapped_u_5     + 1j*longlist.mapped_v_5
     longlist['Uo_30']  = longlist.mapped_u_30    + 1j*longlist.mapped_v_30
+    longlist['Uo_55']  = longlist.mapped_u_55    + 1j*longlist.mapped_v_55
+    longlist['Uo_110']  = longlist.mapped_u_110    + 1j*longlist.mapped_v_110
     longlist['Uoscar'] = longlist.mapped_u_oscar + 1j*longlist.mapped_v_oscar
     longlist['Ustokes'] = longlist.mapped_u_stokes + 1j*longlist.mapped_v_stokes
     longlist['U_st'] = longlist.Ustokes + longlist.Uo_30
@@ -148,7 +154,7 @@ if __name__ == '__main__':
 
     # calcuating what Uo_clim_mean and W_clim_mean should be. 
     GLORYs  = xr.open_dataset(settings.GLORYS_FILE)
-    depths = [ 0.494,  5.0782,  13.4671, 29.4447]
+    depths = [ 0.494,  5.0782,  13.4671, 29.4447, 55.7643, 109.7293]
     for d in depths:
         GLORYs_mean = (GLORYs.sel(time = slice('2021-01-01', '2025-12-31'), depth = d)
                         .mean(dim= ['time', 'latitude', 'longitude']))
@@ -156,6 +162,13 @@ if __name__ == '__main__':
         print(f'{GLORYs_mean.uo.values :.4f}, {GLORYs_mean.vo.values :.4f}')
 
     ERA5  = xr.open_dataset(settings.ERA5_FILE)
+    print('stokes mean')
+    GLORYS_depth = GLORYs.sel(depth = 30 , method='nearest')
+    Stokes = ERA5.interp_like(GLORYS_depth)
+    Uo_stokes = (GLORYS_depth.uo + GLORYS_depth.vo*1j) + (Stokes.ust + Stokes.vst*1j)
+    stokes_mean = np.mean(Uo_stokes)
+    print(f'{stokes_mean.real :.4f}, {stokes_mean.imag :.4f}')
+    
     ERA5_mean = (ERA5.sel(time = slice('2021-01-01', '2025-12-31'))
                     .mean(dim= ['time', 'latitude', 'longitude']))
     print('W_clim_mean')

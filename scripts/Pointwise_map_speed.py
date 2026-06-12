@@ -69,6 +69,12 @@ print('5 m Done')
 print('starting 30m')
 dFADs = Add_interp_currents(dFADs, cmems.vo, cmems.uo, tag = '_30', depth = 29.4447)
 print('30 Done')
+dFADs = Add_interp_currents(dFADs, cmems.vo, cmems.uo, tag = '_30', depth = 29.4447)
+print('30 Done')
+dFADs = Add_interp_currents(dFADs, cmems.vo, cmems.uo, tag = '_55', depth = 55.7643)
+print('50 Done')
+dFADs = Add_interp_currents(dFADs, cmems.vo, cmems.uo, tag = '_110', depth = 109.7293)
+print('100 Done')
 
 
 dFADs.to_parquet(settings.dFAD_DATA)

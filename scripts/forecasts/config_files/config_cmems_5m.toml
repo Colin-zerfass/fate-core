@@ -14,9 +14,10 @@ forecast_length = 8 #length of Forecasts in Days. ##only changes runtime of mode
 persistence = false
 persistence_window = 2
 Tau = 0.83 # Days 
-depth = 5.0782 # Options are: [ 0.494   1.5414  2.6457  3.8195  5.0782  6.4406  7.9296  9.573  11.405 13.4671 15.8101 18.4956 21.5988 25.2114 29.4447]
+depth = 5.0782 # Options are: [ 0.494   1.5414  2.6457  3.8195  5.0782  6.4406  7.9296  9.573  11.405 13.4671 15.8101 18.4956 21.5988 25.2114 29.4447, 55.7643, 109.7293]
 bias = false
 wind = false
+stokes_drift = false
 
 # bias corrections
 [GLORYs_correction]

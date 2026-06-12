@@ -55,12 +55,18 @@ def Run_model_dynamical(startdate:pd.Timestamp, enddate:pd.Timestamp, monthindex
     filename = config['currents_file']
     depth = config['depth']
     forecast_length = pd.Timedelta(days = config['forecast_length'])
+    stokes_drift = config['stokes_drift']
     
     #loading the data
     cmems = xr.open_dataset(settings.GLORYS_FILE)
     cmems = cmems.sel(time = slice(startdate, enddate+forecast_length), 
               depth = depth) 
     Uo = cmems.uo +cmems.vo*1j
+
+    if stokes_drift:
+        winds = xr.open_dataset(settings.ERA5_FILE)
+        U_stokes  = winds.ust + winds.vst*1j
+        Uo = Uo + U_stokes
 
     if config['bias'] == True: 
         m = (config['GLORYs_correction']['currents'][0] + 

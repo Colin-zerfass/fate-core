@@ -1,5 +1,5 @@
 # Data
-output_name = 'cmems_2026_5m_bias_meanremoved'
+output_name = 'cmems_2026_55m_bias_meanremoved'
 
 
 parallel_cores = 128
@@ -14,16 +14,16 @@ forecast_length = 8 #length of Forecasts in Days. ##only changes runtime of mode
 persistence = false
 persistence_window = 2
 Tau = 0.83 # Days 
-depth = 5.0782 # Options are: [ 0.494   1.5414  2.6457  3.8195  5.0782  6.4406  7.9296  9.573  11.405 13.4671 15.8101 18.4956 21.5988 25.2114 29.4447, 55.7643, 109.7293]
+depth = 55.7643 # Options are: [ 0.494   1.5414  2.6457  3.8195  5.0782  6.4406  7.9296  9.573  11.405 13.4671 15.8101 18.4956 21.5988 25.2114 29.4447, 55.7643, 109.7293]
 bias = true
 wind = false
 stokes_drift = false
 
 # bias corrections
 [GLORYs_correction]
-currents = [0.7766, 0.0820]
+currents = [0.7543, 0.0468]
 wind = [0, 0] 
-Uo_clim_mean = [0.2112, 0.0720] #mean(u)
+Uo_clim_mean = [0.2927, 0.0158] #mean(u)
 U_dfad_mean = [0.163768, 0.049398]
 
 [OSCAR_correction]

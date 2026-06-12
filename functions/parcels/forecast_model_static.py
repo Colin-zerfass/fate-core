@@ -43,6 +43,7 @@ def Run_model_static(startdate:pd.Timestamp, enddate:pd.Timestamp, monthindex:in
     filename = config['currents_file']
     depth = config['depth']
     forecast_length = pd.Timedelta(days = config['forecast_length'])
+    stokes_drift = config['stokes_drift']
     ##_______________________
     # load Currents and Winds 
     ##_______________________
@@ -53,6 +54,10 @@ def Run_model_static(startdate:pd.Timestamp, enddate:pd.Timestamp, monthindex:in
         cmems = cmems.sel(time = slice(startdate, enddate+forecast_length), 
               depth = depth) 
         Uo = cmems.uo +cmems.vo*1j
+        if stokes_drift:
+            winds = xr.open_dataset(settings.ERA5_FILE)
+            U_stokes  = winds.ust + winds.vst*1j
+            Uo = Uo + U_stokes
 
         if config['bias'] == True:
             m = config['GLORYs_correction']['currents'][0] + config['GLORYs_correction']['currents'][1]*1j
@@ -74,6 +79,10 @@ def Run_model_static(startdate:pd.Timestamp, enddate:pd.Timestamp, monthindex:in
         oscar = xr.open_dataset(settings.OSCAR_FILE)
         oscar = oscar.sel(time = slice(startdate, enddate+forecast_length))
         Uo = oscar.uo +oscar.vo*1j
+        if stokes_drift:
+            winds = xr.open_dataset(settings.ERA5_FILE)
+            U_stokes  = winds.ust + winds.vst*1j
+            Uo = Uo + U_stokes
 
         if config['bias'] == True:
             m = config['OSCAR_correction']['currents'][0] + config['OSCAR_correction']['currents'][1]*1j
