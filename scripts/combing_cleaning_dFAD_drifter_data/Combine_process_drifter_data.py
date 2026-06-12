@@ -6,7 +6,7 @@ x_deg, y_deg, x_km, y_km, xy_km, x_speed, y_speed, xy_speed
 """
 
 import pandas as pd
-import glob 
+from pathlib import Path
 import geopandas as gpd
 import numpy as np
 import shapely as sp 
@@ -35,13 +35,20 @@ def combine_all_drifter_files(dir = settings.DATA_DIR / 'Drifters'):
     return output
 
 
-def csv_parquet(data:pd.DataFrame, add_min_max_times = True) -> gpd.GeoDataFrame:
+def csv_parquet(data:pd.DataFrame, 
+                outout_location: Path = settings.DATA_DIR / 'Drifter_cleaned_2026_06.parquet', 
+                add_min_max_times = True, Geofenced_box= False) -> gpd.GeoDataFrame:
+    data = data.copy()
     data['Timestamp'] = pd.to_datetime(data['Timestamp'])
     data['Longitude'] = data['Longitude'] - 360
     if add_min_max_times: 
         data["MinOfTimes"] = data.groupby(["BuoyName"])['Timestamp'].transform("min")
         data["MaxOfTimes"] = data.groupby(["BuoyName"])['Timestamp'].transform("max")
 
+    if Geofenced_box:
+        data = data.rename(columns= {'Latitude': 'lats', 'Longitude': 'lons'})
+        data = funcs.Query_longlist(dFADs_ds= data, lat = [4.5, 7.75], lon = [-163.75, -160.6667])
+        data = data.rename(columns = {'lats' : 'Latitude' , 'lons' : 'Longitude'})
     Latitude_list = data.groupby("BuoyName")["Latitude"].apply(list)
     Longitude_list = data.groupby("BuoyName")["Longitude"].apply(list)
     times_list = data.groupby("BuoyName")["Timestamp"].apply(list)
@@ -75,10 +82,11 @@ def csv_parquet(data:pd.DataFrame, add_min_max_times = True) -> gpd.GeoDataFrame
         lines.append(new_line)
     data['TimeStamp'] = Timestamp_list
     data['geometry'] = lines
-    data.to_parquet(settings.DATA_DIR/ 'Drifter_cleaned_2026_06.parquet')
+    data.to_parquet( outout_location)
     return data
 
 
 if __name__ == '__main__':
     ds = combine_all_drifter_files(settings.DATA_DIR / 'Drifters')
-    ds = csv_parquet(ds)
+    csv_parquet(ds, outout_location= settings.DATA_DIR / 'Drifter_cleaned_2026_06.parquet')
+    csv_parquet(ds, outout_location= settings.DATA_DIR / 'Drifter_cleaned_geofenced_2026_06_.parquet', Geofenced_box= True)
