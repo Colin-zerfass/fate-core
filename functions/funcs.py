@@ -1036,19 +1036,29 @@ def Query_dFAD_inclusive(dFAD_ds:gpd.GeoDataFrame,
 
 
 def Query_longlist(dFADs_ds: pd.DataFrame,
-                   BuoyID: str | None = None,
-                   Time1: str | pd.Timestamp | None = None, 
-                   Time2: str | pd.Timestamp | None = None) -> pd.DataFrame:
+                   BuoyID:  str | None = None,
+                   Time1:   str | pd.Timestamp | None = None, 
+                   Time2:   str | pd.Timestamp | None = None,
+                   lat:     list | None = None,
+                   lon:    list | None = None) -> pd.DataFrame:
     subset = dFADs_ds.copy()
 
-    # filter by BuoyID
-    if BuoyID is not None:
+    if BuoyID is not None:    # filter by BuoyID
         subset = subset[subset['BuoyID'] == BuoyID]
 
-    # filter by time Range
-    if (Time1 is not None) and (Time2 is not None):
+    if (Time1 is not None) and (Time2 is not None): # filter by time Range
         Time1 = pd.to_datetime(Time1) if isinstance(Time1, str) else Time1
         Time2 = pd.to_datetime(Time2) if isinstance(Time2, str) else Time2
         subset = subset[(subset['Time'] > Time1) & (subset['Time'] < Time2)]
+
+    if lat is not None: # filter by latitude
+        mask = (subset.lats >= lat[0]) & (subset.lats <= lat[1])
+        subset = subset[mask]
+
+    if lon is not None: # filter by longitude 
+        mask = (subset.lons >= lon[0]) & (subset.lons <= lon[1])
+        subset = subset[mask]
+
     return subset.reset_index(drop=True)
+
 

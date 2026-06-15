@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 from functions.parcels.forecast_model_dynamic import Run_model_dynamical, log
 from functions.parcels.forecast_model_static import Run_model_static
+from functions.parcels.Dataloader_alligner import compute_bias_corrections
 from combine_outputs import combine_outputs_csv 
 import functions.settings as settings
 
@@ -28,6 +29,10 @@ if __name__ == '__main__':
     print(totalstartdate)
     print(totalenddate)
     log(f"Starting Run: {config['output_name']}\n")
+
+    # Compute and write bias corrections into the config file before launching workers.
+    # This must run before the pool so all workers read the updated coefficients.
+    compute_bias_corrections(config_name)
 
     # Split the full day range evenly across available cores.
     # Each worker gets a contiguous block of days rather than a calendar month.

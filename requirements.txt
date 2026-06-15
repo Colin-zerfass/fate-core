@@ -8,5 +8,6 @@ statsmodels
 parcels
 zarr
 tomli
+tomli_w
 cartopy
 pyarrow

@@ -378,7 +378,7 @@ def FIG3():
     shared_ax.tick_params(labelcolor='none',top=False, bottom=False, left=False, right=False)
     fig.tight_layout()
 
-    FIG3_name  = settings.FIGURES_PAPER_DIR / 'FIG3.png'
+    FIG3_name  = settings.FIGURES_PAPER_DIR / 'FIG3.pdf'
     fig.savefig(FIG3_name)
     print(f'FIG3 saved to: {FIG3_name}')
 

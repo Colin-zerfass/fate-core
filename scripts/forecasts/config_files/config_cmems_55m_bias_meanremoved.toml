@@ -21,7 +21,7 @@ stokes_drift = false
 
 # bias corrections
 [GLORYs_correction]
-currents = [0.7543, 0.0468]
+currents = [0.7790, 0.0782]
 wind = [0, 0] 
 Uo_clim_mean = [0.2927, 0.0158] #mean(u)
 U_dfad_mean = [0.163768, 0.049398]

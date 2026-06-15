@@ -10,3 +10,6 @@ Forecast_job.sh
 *.csv
 *.nc
 *.parquet
+
+# files 
+scripts\forecasts\output\Output_log.txt

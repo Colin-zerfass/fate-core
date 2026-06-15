@@ -207,3 +207,125 @@ class Alligner():
                                       "lon_forcast":lon_interp_l, "leadtime":leadtimes_l})
         # print(f"{month} has empty data: {emptydata}/{len(buoy_indices)}")
         # self.dssave.to_csv(rf"output\Forecast{[month]}.csv")
+
+
+_DEPTH_COMMENT         = '# Options are: [ 0.494   1.5414  2.6457  3.8195  5.0782  6.4406  7.9296  9.573  11.405 13.4671 15.8101 18.4956 21.5988 25.2114 29.4447, 55.7643, 109.7293]'
+_TAU_COMMENT           = '# Days'
+_CURRENTS_FILE_COMMENT = '#options [cmems, OSCAR]'
+_FORECAST_LEN_COMMENT  = '#length of Forecasts in Days. ##only changes runtime of model.'
+
+def _write_toml_with_depth_comment(configfile: str, config: dict) -> None:
+    """Serialise config with tomli_w then re-attach the depth options comment."""
+    import re
+    import tomli_w
+
+    with open(configfile, 'wb') as f:
+        tomli_w.dump(config, f)
+
+    with open(configfile, 'r', encoding='utf-8') as f:
+        text = f.read()
+
+    # Re-attach inline comments stripped by tomli_w
+    text = re.sub(r'(^depth\s*=\s*[^\n]*)',          rf'\1  {_DEPTH_COMMENT}',         text, flags=re.MULTILINE)
+    text = re.sub(r'(^Tau\s*=\s*[^\n]*)',             rf'\1  {_TAU_COMMENT}',            text, flags=re.MULTILINE)
+    text = re.sub(r'(^currents_file\s*=\s*[^\n]*)',   rf'\1  {_CURRENTS_FILE_COMMENT}',  text, flags=re.MULTILINE)
+    text = re.sub(r'(^forecast_length\s*=\s*[^\n]*)', rf'\1  {_FORECAST_LEN_COMMENT}',   text, flags=re.MULTILINE)
+
+    with open(configfile, 'w', encoding='utf-8') as f:
+        f.write(text)
+
+
+def compute_bias_corrections(configfile: str) -> None:
+    """Compute bias-correction coefficients from collocated dFAD observations
+    and write them back into the [GLORYs_correction] table of the TOML config.
+
+    Cases handled
+    -------------
+    bias=True,   wind=False, stokes=False  ->  Z-scaling of GLORYS at given depth
+    bias=True,   wind=True,  stokes=False  ->  2-predictor regression (GLORYS + ERA5 wind)
+    stokes=True, bias=False                ->  no coefficients needed; returns early
+    stokes=True, bias=True,  wind=False    ->  Z-scaling of (GLORYS + Stokes)
+    stokes=True, bias=True,  wind=True     ->  not implemented; raises NotImplementedError
+    """
+    import numpy as np
+    import geopandas as gpd
+    import tomli as tomllib
+    import functions.settings as settings
+    import functions.funcs as func
+    from functions.corrections import Calc_Z, Regression
+
+    with open(configfile, 'rb') as f:
+        config = tomllib.load(f)
+
+    bias      = config.get('bias', False)
+    wind      = config.get('wind', False)
+    stokes    = config.get('stokes_drift', False)
+    depth_val = config['depth']
+
+    if not bias:
+        print("compute_bias_corrections: bias=False — nothing to compute.")
+        return
+
+    if stokes and wind:
+        raise NotImplementedError("stokes + bias + wind combination is not yet supported.")
+
+    # Map depth value to the nearest pre-mapped parquet column pair
+    _depth_cols = {
+        0.494:    ('mapped_u_1',   'mapped_v_1'),
+        5.0782:   ('mapped_u_5',   'mapped_v_5'),
+        29.4447:  ('mapped_u_30',  'mapped_v_30'),
+        55.7643:  ('mapped_u_55',  'mapped_v_55'),
+        109.7293: ('mapped_u_110', 'mapped_v_110'),
+    }
+    key_depths = np.array(list(_depth_cols.keys()))
+    nearest    = key_depths[np.argmin(np.abs(key_depths - depth_val))]
+    u_col, v_col = _depth_cols[nearest]
+
+    # Build longlist from all available dFAD data
+    extra = [u_col, v_col, 'mapped_u_winds', 'mapped_v_winds']
+    if stokes:
+        extra += ['mapped_u_stokes', 'mapped_v_stokes']
+
+    ds       = gpd.read_parquet(settings.dFAD_DATA)
+    longlist = func.generate_longlist(ds, extra_columns=extra)
+
+    drop_cols = [u_col, v_col, 'x_speed', 'y_speed', 'mapped_u_winds', 'mapped_v_winds']
+    if stokes:
+        drop_cols += ['mapped_u_stokes', 'mapped_v_stokes']
+    longlist = longlist.dropna(subset=drop_cols).reset_index(drop=True)
+
+    longlist['U']  = longlist['x_speed']       + 1j * longlist['y_speed']
+    longlist['W']  = longlist['mapped_u_winds'] + 1j * longlist['mapped_v_winds']
+    longlist['Uo'] = longlist[u_col]            + 1j * longlist[v_col]
+    if stokes:
+        longlist['Uo'] = longlist['Uo'] + (longlist['mapped_u_stokes'] + 1j * longlist['mapped_v_stokes'])
+
+    Uo_mean = complex(longlist['Uo'].mean())
+    U_mean  = complex(longlist['U'].mean())
+    W_mean  = complex(longlist['W'].mean())
+
+    if not wind:
+        Z = Calc_Z(longlist['Uo'], longlist['U'])
+        m, n = complex(Z), complex(0)
+    else:
+        coef = Regression(longlist)
+        m, n = complex(coef[0]), complex(coef[1])
+
+    corrections = config.get('GLORYs_correction', {})
+    corrections['currents']     = [m.real,       m.imag]
+    corrections['wind']         = [n.real,        n.imag]
+    corrections['Uo_clim_mean'] = [Uo_mean.real,  Uo_mean.imag]
+    corrections['U_dfad_mean']  = [U_mean.real,   U_mean.imag]
+    corrections['W_clim_mean']  = [W_mean.real,   W_mean.imag]
+    config['GLORYs_correction'] = corrections
+    _write_toml_with_depth_comment(configfile, config)
+
+    print(f"compute_bias_corrections: wrote corrections to {configfile}")
+    print(f"  depth matched: {nearest:.4f} m  ->  columns {u_col}, {v_col}" + (" + Stokes" if stokes else ""))
+    print(f"  mode: {'Z-scaling' if not wind else '2-predictor regression'}")
+    print(f"  currents m = {m.real:+.6f} + {m.imag:+.6f}j   |m|={abs(m):.4f} @ {np.angle(m, deg=True):.1f} deg")
+    if wind:
+        print(f"  wind     n = {n.real:+.6f} + {n.imag:+.6f}j   |n|={abs(n):.4f} @ {np.angle(n, deg=True):.1f} deg")
+    print(f"  Uo_clim_mean = [{Uo_mean.real:.6f}, {Uo_mean.imag:.6f}]")
+    print(f"  U_dfad_mean  = [{U_mean.real:.6f}, {U_mean.imag:.6f}]")
+

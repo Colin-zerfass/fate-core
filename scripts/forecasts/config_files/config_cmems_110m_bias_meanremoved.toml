@@ -1,5 +1,5 @@
 # Data
-output_name = 'cmems_2026_55m_bias_meanremoved'
+output_name = 'cmems_2026_110m_bias_meanremoved'
 
 
 parallel_cores = 128
@@ -21,7 +21,7 @@ stokes_drift = false
 
 # bias corrections
 [GLORYs_correction]
-currents = [0.6280,0.0118]
+currents = [0.6629, 0.0374]
 wind = [0, 0] 
 Uo_clim_mean = [0.2393, -0.0053] #mean(u)
 U_dfad_mean = [0.163768, 0.049398]
