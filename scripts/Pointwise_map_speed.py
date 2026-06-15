@@ -20,13 +20,26 @@ import pandas as pd
 import geopandas as gpd
 from functions.funcs import Add_interp_currents
 import functions.settings as settings
+import argparse 
+
+
+parser = argparse.ArgumentParser(description='Pointwise map speed script')
+parser.add_argument('--drifter', action='store_true', help='Load drifter file instead of dFADs file')
+args = parser.parse_args()
 
 ## loaddatasets to be intermpolated 
 data_path = settings.DATA_DIR
-dFADs_file = r'SAT_MI_FAD_cleanedspeeds_2026-01-01.parquet'
+if args.drifter:
+    input_file = settings.DRIFTER_GEOFENCED_DATA_UNMAPPED
+    output_file = settings.DRIFTER_GEOFENCED_DATA
+else:
+    input_file = r'SAT_MI_FAD_cleanedspeeds_2026-01-01.parquet'
+    output_file = settings.dFAD_DATA
+print(f'Loading: {input_file}')
+dFADs = gpd.read_parquet(data_path / input_file)
+print(f'Output file will be: {output_file}')
 
 ##Load data
-dFADs = gpd.read_parquet(data_path / dFADs_file)
 
 cmems = xr.open_dataset(settings.GLORYS_FILE)
 oscar = xr.open_dataset(settings.OSCAR_FILE)
@@ -69,17 +82,15 @@ print('5 m Done')
 print('starting 30m')
 dFADs = Add_interp_currents(dFADs, cmems.vo, cmems.uo, tag = '_30', depth = 29.4447)
 print('30 Done')
-dFADs = Add_interp_currents(dFADs, cmems.vo, cmems.uo, tag = '_30', depth = 29.4447)
-print('30 Done')
 dFADs = Add_interp_currents(dFADs, cmems.vo, cmems.uo, tag = '_55', depth = 55.7643)
 print('50 Done')
 dFADs = Add_interp_currents(dFADs, cmems.vo, cmems.uo, tag = '_110', depth = 109.7293)
 print('100 Done')
 
 
-dFADs.to_parquet(settings.dFAD_DATA)
-
-dFADs = gpd.read_parquet(settings.dFAD_DATA)
+dFADs.to_parquet(output_file)
+print(f'Output saved to: {output_file}')
+dFADs = gpd.read_parquet(output_file)
 
 ## checking amount of nans
 from functions.funcs import Column_to_List, list_of_latlon

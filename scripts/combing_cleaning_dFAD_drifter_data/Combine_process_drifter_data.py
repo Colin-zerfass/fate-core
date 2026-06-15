@@ -46,9 +46,11 @@ def csv_parquet(data:pd.DataFrame,
         data["MaxOfTimes"] = data.groupby(["BuoyName"])['Timestamp'].transform("max")
 
     if Geofenced_box:
-        data = data.rename(columns= {'Latitude': 'lats', 'Longitude': 'lons'})
-        data = funcs.Query_longlist(dFADs_ds= data, lat = [4.5, 7.75], lon = [-163.75, -160.6667])
-        data = data.rename(columns = {'lats' : 'Latitude' , 'lons' : 'Longitude'})
+        data = data.rename(columns= {'Latitude': 'lats', 'Longitude': 'lons', 'Timestamp': 'Time'})
+        data = funcs.Query_longlist(dFADs_ds= data, 
+                                    Time1 = '2022-01-01' , Time2 = '2026-01-01', 
+                                    lat = [4.5, 7.75], lon = [-163.75, -160.6667])
+        data = data.rename(columns = {'lats' : 'Latitude' , 'lons' : 'Longitude', 'Time': 'Timestamp'})
     Latitude_list = data.groupby("BuoyName")["Latitude"].apply(list)
     Longitude_list = data.groupby("BuoyName")["Longitude"].apply(list)
     times_list = data.groupby("BuoyName")["Timestamp"].apply(list)
@@ -88,5 +90,5 @@ def csv_parquet(data:pd.DataFrame,
 
 if __name__ == '__main__':
     ds = combine_all_drifter_files(settings.DATA_DIR / 'Drifters')
-    csv_parquet(ds, outout_location= settings.DATA_DIR / 'Drifter_cleaned_2026_06.parquet')
-    csv_parquet(ds, outout_location= settings.DATA_DIR / 'Drifter_cleaned_geofenced_2026_06_.parquet', Geofenced_box= True)
+    csv_parquet(ds, outout_location= settings.DRIFTER_DATA)
+    csv_parquet(ds, outout_location= settings.DRIFTER_GEOFENCED_DATA_UNMAPPED , Geofenced_box= True)

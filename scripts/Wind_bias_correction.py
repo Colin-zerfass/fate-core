@@ -12,6 +12,7 @@ import xarray as xr
 import geopandas as gpd
 import numpy as np 
 import functions.settings as settings 
+import argparse
 
 
 
@@ -61,6 +62,18 @@ def regression_u(longlist, coefficients, Uo='Uo', W='W', suffix=None):
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description= 'Corrilation between dFAD or drifters to model')
+    parser.add_argument('--drifter', action='store_true', help='Load drifter file instead of dFADs file')
+    args = parser.parse_args()
+
+    if args.drifter: 
+        input_file = settings.DRIFTER_GEOFENCED_DATA
+    else: 
+        input_file = settings.dFAD_DATA
+    ds = gpd.read_parquet(input_file)
+    print(f'Loaded file {input_file}')
+
+
     #Map model name -> ocean current column. Add/remove entries here to change what is processed.
     models = {
         'OSCAR':     'Uoscar',
@@ -75,7 +88,6 @@ if __name__ == '__main__':
     }
 
 
-    ds = gpd.read_parquet(settings.dFAD_DATA)
     longlist = func.generate_longlist(ds, extra_columns = ['mapped_u', 'mapped_u_oscar',
                                                             'mapped_v', 'mapped_v_oscar',
                                                             'mapped_u_winds', 'mapped_v_winds',
@@ -152,6 +164,7 @@ if __name__ == '__main__':
     z_wind  = Calc_Z(longlist.W, longlist.U)
     print(f'  Z coef:  {z_wind:+.4f}  |  {np.abs(z_wind):.3f} @ {np.angle(z_wind, deg=True):.1f} deg')
 
+    print('--- Mean Values --- ')
     # calcuating what Uo_clim_mean and W_clim_mean should be. 
     GLORYs  = xr.open_dataset(settings.GLORYS_FILE)
     depths = [ 0.494,  5.0782,  13.4671, 29.4447, 55.7643, 109.7293]
