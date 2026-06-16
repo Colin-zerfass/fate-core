@@ -252,23 +252,20 @@ def compute_bias_corrections(configfile: str) -> None:
     import tomli as tomllib
     import functions.settings as settings
     import functions.funcs as func
-    from functions.corrections import Calc_Z, Regression
+    from functions.corrections import Regression3
 
     with open(configfile, 'rb') as f:
         config = tomllib.load(f)
 
-    bias      = config.get('bias', False)
-    wind      = config.get('wind', False)
-    stokes    = config.get('stokes_drift', False)
+
+    bias      = config['bias']
+    wind      = config['wind']
+    stokes    = config['stokes_drift']
     depth_val = config['depth']
-
-    if not bias:
-        print("compute_bias_corrections: bias=False — nothing to compute.")
+    print(bias, wind, stokes, depth_val)
+    if (not bias) & (not wind) & (not stokes):   
+        print('Bias, Wind, Stokes all False No regression need')
         return
-
-    if stokes and wind:
-        raise NotImplementedError("stokes + bias + wind combination is not yet supported.")
-
     # Map depth value to the nearest pre-mapped parquet column pair
     _depth_cols = {
         0.494:    ('mapped_u_1',   'mapped_v_1'),
@@ -282,50 +279,46 @@ def compute_bias_corrections(configfile: str) -> None:
     u_col, v_col = _depth_cols[nearest]
 
     # Build longlist from all available dFAD data
-    extra = [u_col, v_col, 'mapped_u_winds', 'mapped_v_winds']
-    if stokes:
-        extra += ['mapped_u_stokes', 'mapped_v_stokes']
+    extra = [u_col, v_col, 'mapped_u_winds', 'mapped_v_winds', 'mapped_u_stokes', 'mapped_v_stokes']
 
     ds       = gpd.read_parquet(settings.dFAD_DATA)
     longlist = func.generate_longlist(ds, extra_columns=extra)
 
-    drop_cols = [u_col, v_col, 'x_speed', 'y_speed', 'mapped_u_winds', 'mapped_v_winds']
-    if stokes:
-        drop_cols += ['mapped_u_stokes', 'mapped_v_stokes']
+    drop_cols = extra + [ 'x_speed', 'y_speed']
     longlist = longlist.dropna(subset=drop_cols).reset_index(drop=True)
 
-    longlist['U']  = longlist['x_speed']       + 1j * longlist['y_speed']
-    longlist['W']  = longlist['mapped_u_winds'] + 1j * longlist['mapped_v_winds']
-    longlist['Uo'] = longlist[u_col]            + 1j * longlist[v_col]
-    if stokes:
-        longlist['Uo'] = longlist['Uo'] + (longlist['mapped_u_stokes'] + 1j * longlist['mapped_v_stokes'])
+    longlist['U']   =  longlist['x_speed']         + 1j * longlist['y_speed']
+    longlist['Uo']  = (longlist[u_col]             + 1j * longlist[v_col]) if bias else 0.0
+    longlist['W']   = (longlist['mapped_u_winds']  + 1j * longlist['mapped_v_winds'])  if wind   else 0.0
+    longlist['Ust'] = (longlist['mapped_u_stokes'] + 1j * longlist['mapped_v_stokes']) if stokes else 0.0
 
-    Uo_mean = complex(longlist['Uo'].mean())
-    U_mean  = complex(longlist['U'].mean())
-    W_mean  = complex(longlist['W'].mean())
+    Uo_mean  = complex(longlist['Uo'].mean())
+    U_mean   = complex(longlist['U'].mean())   if bias   else complex(0)
+    W_mean   = complex(longlist['W'].mean())   if wind   else complex(0)
+    Ust_mean = complex(longlist['Ust'].mean()) if stokes else complex(0)
 
-    if not wind:
-        Z = Calc_Z(longlist['Uo'], longlist['U'])
-        m, n = complex(Z), complex(0)
-    else:
-        coef = Regression(longlist)
-        m, n = complex(coef[0]), complex(coef[1])
+    coef = Regression3(longlist)
+    m, n, s = complex(coef[0]), complex(coef[1]), complex(coef[2])
 
     corrections = config.get('GLORYs_correction', {})
-    corrections['currents']     = [m.real,       m.imag]
-    corrections['wind']         = [n.real,        n.imag]
-    corrections['Uo_clim_mean'] = [Uo_mean.real,  Uo_mean.imag]
-    corrections['U_dfad_mean']  = [U_mean.real,   U_mean.imag]
-    corrections['W_clim_mean']  = [W_mean.real,   W_mean.imag]
+    corrections['currents']      = [m.real,        m.imag]
+    corrections['wind']          = [n.real,         n.imag]
+    corrections['stokes']        = [s.real,         s.imag]
+    corrections['Uo_clim_mean']  = [Uo_mean.real,   Uo_mean.imag]
+    corrections['U_dfad_mean']   = [U_mean.real,    U_mean.imag]
+    corrections['W_clim_mean']   = [W_mean.real,    W_mean.imag]
+    corrections['Ust_clim_mean'] = [Ust_mean.real,  Ust_mean.imag]
     config['GLORYs_correction'] = corrections
     _write_toml_with_depth_comment(configfile, config)
 
     print(f"compute_bias_corrections: wrote corrections to {configfile}")
-    print(f"  depth matched: {nearest:.4f} m  ->  columns {u_col}, {v_col}" + (" + Stokes" if stokes else ""))
-    print(f"  mode: {'Z-scaling' if not wind else '2-predictor regression'}")
+    print(f"  depth matched: {nearest:.4f} m  ->  columns {u_col}, {v_col}")
+    print(f"  mode: 3-predictor regression  (n=0 if wind=False, s=0 if stokes=False)")
     print(f"  currents m = {m.real:+.6f} + {m.imag:+.6f}j   |m|={abs(m):.4f} @ {np.angle(m, deg=True):.1f} deg")
-    if wind:
-        print(f"  wind     n = {n.real:+.6f} + {n.imag:+.6f}j   |n|={abs(n):.4f} @ {np.angle(n, deg=True):.1f} deg")
-    print(f"  Uo_clim_mean = [{Uo_mean.real:.6f}, {Uo_mean.imag:.6f}]")
-    print(f"  U_dfad_mean  = [{U_mean.real:.6f}, {U_mean.imag:.6f}]")
+    print(f"  wind     n = {n.real:+.6f} + {n.imag:+.6f}j   |n|={abs(n):.4f} @ {np.angle(n, deg=True):.1f} deg")
+    print(f"  stokes   s = {s.real:+.6f} + {s.imag:+.6f}j   |s|={abs(s):.4f} @ {np.angle(s, deg=True):.1f} deg")
+    print(f"  Uo_clim_mean  = [{Uo_mean.real:.6f}, {Uo_mean.imag:.6f}]")
+    print(f"  U_dfad_mean   = [{U_mean.real:.6f}, {U_mean.imag:.6f}]")
+    print(f"  W_clim_mean   = [{W_mean.real:.6f}, {W_mean.imag:.6f}]")
+    print(f"  Ust_clim_mean   = [{Ust_mean.real:.6f}, {Ust_mean.imag:.6f}]")
 
