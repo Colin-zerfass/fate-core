@@ -13,17 +13,7 @@ import geopandas as gpd
 import numpy as np 
 import functions.settings as settings 
 import argparse
-from functions.corrections import Calc_Z, Regression
-
-
-def calc_R_anything(U, W):
-    U = U - np.mean(U)
-    W = W - np.mean(W)
-    num = np.mean(np.conjugate(U)*W)
-    a = np.mean(np.conjugate(U)*U)
-    b = np.mean(np.conjugate(W)*W)
-    return num/np.sqrt(a*b)
-
+from functions.corrections import Calc_Z, Regression, calc_R_anything, regression_u
 
 def print_coefficients(name, coefficients):
     print(f'{name}')
@@ -37,15 +27,6 @@ def print_contributions(name, coefficients, Uo_mean, W_mean):
     total = ocean_contrib + wind_contrib
     print(f'  Currents: {ocean_contrib/total*100:.2f}%')
     print(f'  Wind:     {wind_contrib/total*100:.2f}%')
-
-
-def regression_u(longlist, coefficients, Uo='Uo', W='W', suffix=None):
-    # Coefficients were fit on anomalies, so apply to anomalies then add back mean(U)
-    Uo_anom = longlist[Uo] - longlist[Uo].mean()
-    W_anom  = longlist[W]  - longlist[W].mean()
-    longlist['Ureg_' + suffix] = coefficients[0]*Uo_anom + coefficients[1]*W_anom + longlist['U'].mean()
-    return longlist
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description= 'Corrilation between dFAD or drifters to model')

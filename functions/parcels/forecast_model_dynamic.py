@@ -63,31 +63,28 @@ def Run_model_dynamical(startdate:pd.Timestamp, enddate:pd.Timestamp, monthindex
               depth = depth) 
     Uo = cmems.uo +cmems.vo*1j
 
-    if stokes_drift:
-        winds = xr.open_dataset(settings.ERA5_FILE)
-        U_stokes  = winds.ust + winds.vst*1j
-        Uo = Uo + U_stokes
+    if usewinds or stokes_drift:
+        era5 = xr.open_dataset(settings.ERA5_FILE)
+        era5 = era5.sel(time=slice(startdate, enddate+forecast_length))
+        era5i = era5.interp_like(cmems)
 
-    if config['bias'] == True: 
-        m = (config['GLORYs_correction']['currents'][0] + 
-             config['GLORYs_correction']['currents'][1]*1j)
-        Uo_clim_mean = (config['GLORYs_correction']['Uo_clim_mean'][0] +
-                        config['GLORYs_correction']['Uo_clim_mean'][1]*1j)
-        U_dfad_mean  = (config['GLORYs_correction']['U_dfad_mean'][0] +
-                        config['GLORYs_correction']['U_dfad_mean'][1]*1j)
-        Uo = m*(Uo - Uo_clim_mean) + U_dfad_mean
-
-    if usewinds == True:
-        winds = xr.open_dataset(settings.ERA5_FILE)
-        winds = winds.sel(time = slice(startdate, enddate+forecast_length))
-        windsi = winds.interp_like(cmems) ## adding winds 
-        ## Y = m*Uo + n*W
-        W = windsi.uo +windsi.vo*1j
-        n = (config['GLORYs_correction']['wind'][0] + 
-             config['GLORYs_correction']['wind'][1]*1j)
-        W_clim_mean = (config['GLORYs_correction']['W_clim_mean'][0] +
-                       config['GLORYs_correction']['W_clim_mean'][1]*1j)
-        Uo = Uo + n * (W - W_clim_mean)
+    corr          = config['GLORYs_correction']
+    m             = corr['currents'][0]      + corr['currents'][1]*1j
+    n             = corr['wind'][0]          + corr['wind'][1]*1j
+    s             = corr['stokes'][0]        + corr['stokes'][1]*1j
+    Uo_clim_mean  = corr['Uo_clim_mean'][0]  + corr['Uo_clim_mean'][1]*1j
+    Ust_clim_mean = corr['Ust_clim_mean'][0] + corr['Ust_clim_mean'][1]*1j
+    W_clim_mean   = corr['W_clim_mean'][0]   + corr['W_clim_mean'][1]*1j
+    U_dfad_mean   = corr['U_dfad_mean'][0]   + corr['U_dfad_mean'][1]*1j
+    W   = era5i.uo  + era5i.vo*1j  if usewinds     else 0
+    Ust = era5i.ust + era5i.vst*1j if stokes_drift else 0
+    if config['bias'] == True:
+        Uo  = m*(Uo - Uo_clim_mean) + n*(W - W_clim_mean) + s*(Ust - Ust_clim_mean) + U_dfad_mean
+    else:
+        if stokes_drift:
+            Uo = Uo + s * (era5i.ust + era5i.vst*1j)
+        if usewinds:
+            Uo = Uo + n * (W - W_clim_mean)
 
 
     cmems['uo'] = Uo.real
