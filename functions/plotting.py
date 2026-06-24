@@ -136,7 +136,7 @@ def Add_bathymetry(fig,ax, colorbar = True):
     #cbr.set_label("m")
     return fig, ax
 
-def NWR_exteriors(data):
+def NWR_exteriors(data, Palmyra = True, Kingman = True):
     """Returns Exteriors and Interiors from NWP dataset."""
     from shapely.ops import unary_union
     geo = data["geometry"][0]
@@ -153,12 +153,20 @@ def NWR_exteriors(data):
         #multipolygon = sp.MultiPolygon(exteriors)
     labels = ["Palmyra NWR", np.nan,"Kingman NWR", np.nan]
     gpddata = gpd.GeoDataFrame({"labels":labels, "geometry": geomentry})
-    return gpddata
+    if (not Palmyra) and (not Kingman): 
+        print('Neither Palmyra or Kigman selected')
+    if Palmyra: 
+        gpddata_final = gpddata[gpddata.labels  == 'Palmyra NWR']
+    if Kingman: 
+        gpddata_final = gpddata[gpddata.labels == 'Kigman NWR']
+    if Palmyra and Kingman: 
+        gpddata_final = gpddata
+    return gpddata_final
 
-def plot_NWPs(ax,data):
+def plot_NWPs(ax,data, Palmyra = True, Kingman = True):
     """Plots Palymra and Kingmon Reef, Pass in Shape file as data
     Returns Ax"""
-    NWR_ext = NWR_exteriors(data)
+    NWR_ext = NWR_exteriors(data, Palmyra= Palmyra, Kingman= Kingman)
     NWR_ext.plot(ax= ax, edgecolor= "darkgreen",alpha = 0.35, column= "labels", legend= True, categorical=True)
     return ax 
 

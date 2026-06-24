@@ -359,3 +359,138 @@ def calc_powerspectrum(dFADs: gpd.GeoDataFrame, segment_length: int, interp_dt =
                 idx += 1
             
     return pd.DataFrame({'freq': freqs, 'PSD': psds, 'VARS': VARS}, index = trajidx)
+
+### Coherence calciations 
+class coherence_traj:
+    def __init__(self, trajectory1:Trajectory, trajectory2:Trajectory):
+        self.traj1 = trajectory1
+        self.traj2 = trajectory2
+        self.fftu1 = np.fft.rfft(self.traj1.u - np.mean(self.traj1.u))
+        self.fftu2 = np.fft.rfft(self.traj2.u - np.mean(self.traj2.u))
+        self.fftv1 = np.fft.rfft(self.traj1.v - np.mean(self.traj1.v))
+        self.fftv2 = np.fft.rfft(self.traj2.v - np.mean(self.traj2.v))
+        self.fftfreq = np.fft.rfftfreq(len(self.traj1.u), self.traj1.dt/np.timedelta64(1, 's'))
+    
+    def autospectral(self):
+        """Calculates the autospectra for the u and v"""
+        Suu1 = np.abs(self.fftu1)**2
+        Svv1 = np.abs(self.fftv1)**2
+        Suu2 = np.abs(self.fftu2)**2
+        Svv2 = np.abs(self.fftv2)**2
+        return Suu1, Svv1, Suu2, Svv2
+    
+    def cross_spectral(self):
+        Su1u2 = self.fftu1 * np.conj(self.fftu2)
+        Sv1v2 = self.fftv1 * np.conj(self.fftv2)
+        return Su1u2, Sv1v2
+    
+def calc_coherence(dFADs:gpd.GeoDataFrame, segment_length: int, maxdt =48, dt= 4):
+    """calcuates cohernce between U_dFADS and the mapped speeds U_model U(u,v)"""
+
+    freqs = []
+    trajidx = []
+    Suu1s, Svv1s, Suu2s, Svv2s = [] , [], [], []
+    Su1u2s, Sv1v2s = [], []
+    starttime_list = []
+    idx = 0
+    for dFAD in range(len(dFADs)):
+        traj1 = dFAD_trajectry(dFADs, index= dFAD, u = 'x_speed', v = 'y_speed')
+        traj2 = dFAD_trajectry(dFADs, index= dFAD, u = 'mapped_u', v = 'mapped_v')
+        segments1  = traj1.splice_dt_toolarge(maxdt=maxdt)
+        segments2  = traj2.splice_dt_toolarge(maxdt=maxdt)
+        for seg1, seg2 in zip(segments1, segments2): 
+            if len(seg1.t) <= 1: 
+                continue
+            seg1_norm = seg1.normalize_t(dt = dt)
+            seg2_norm = seg2.normalize_t(dt = dt)
+            chunks1 = seg1_norm.splice_even_trajectories(segment_length)
+            chunks2 = seg2_norm.splice_even_trajectories(segment_length)
+            for chunk1, chunk2 in zip(chunks1, chunks2):
+                co = coherence_traj(chunk1, chunk2)
+                starttime = chunk1.t[0]
+                Suu1, Svv1, Suu2, Svv2 = co.autospectral()
+                Su1u2, Sv1v2 = co.cross_spectral()
+                Suu1s.extend(Suu1)
+                Svv1s.extend(Svv1)
+                Suu2s.extend(Suu2)
+                Svv2s.extend(Svv2)
+                Su1u2s.extend(Su1u2)
+                Sv1v2s.extend(Sv1v2)
+                freqs.extend(co.fftfreq)
+                trajidx.extend([idx]*len(co.fftfreq))
+                idx += 1
+                starttime_list.extend([starttime]*len(co.fftfreq))
+
+    return pd.DataFrame({'freq':freqs, 'Suu1': Suu1s, 'Suu2':Suu2s, 'Su1u2' : Su1u2s,
+                         'Svv1': Svv1s, 'Svv2':Svv2s, 'Sv1v2' : Sv1v2s, 'starttime' : starttime_list}, index = trajidx)
+
+def calc_coherence_mean(cohr_list): 
+    cohr =pd.DataFrame(index = cohr_list.freq.unique())
+    cohr['Suu1'] = cohr_list.groupby('freq')['Suu1'].mean()
+    cohr['Suu2'] = cohr_list.groupby('freq')['Suu2'].mean()
+    cohr['Su1u2'] = cohr_list.groupby('freq')['Su1u2'].mean()
+    cohr['Su1u2'] = cohr['Su1u2'].abs()**2
+    cohr['cohr_u'] = cohr.Su1u2/ (cohr.Suu1 * cohr.Suu2)
+
+    cohr['Svv1'] = cohr_list.groupby('freq')['Svv1'].mean()
+    cohr['Svv2'] = cohr_list.groupby('freq')['Svv2'].mean()
+    cohr['Sv1v2'] = cohr_list.groupby('freq')['Sv1v2'].mean()
+    cohr['Sv1v2'] = cohr['Sv1v2'].abs()**2
+    cohr['cohr_v'] = cohr.Sv1v2/ (cohr.Svv1 * cohr.Svv2)
+    return cohr
+
+def block_bootstrap_cohr(cohr_list: pd.DataFrame, n_resamples: int, window_size: int = 20) -> pd.DataFrame:
+    """
+    Block bootstrap for coherence data, where blocks are defined by
+    contiguous time windows of `window_size` days based on the `starttime` column.
+
+    Blocks are resampled with replacement. Each resample draws n_blocks blocks
+    (same number as in the original data) and computes coherence from the mean
+    cross-spectra of all trajectories in the selected blocks (Welch-style averaging
+    is preserved within each bootstrap sample).
+    """
+    # One starttime per trajectory
+    meta = cohr_list[['starttime']].groupby(cohr_list.index).first()
+    traj_ids = meta.index.to_numpy()
+    start_times = pd.to_datetime(meta['starttime'])
+
+    # Assign each trajectory to an integer block based on starttime
+    t0 = start_times.min()
+    days_from_start = (start_times - t0).dt.total_seconds() / 86400
+    block_ids = (days_from_start // window_size).astype(int).to_numpy()
+
+    unique_blocks = np.unique(block_ids)
+    n_blocks = len(unique_blocks)
+
+    # Map block_id -> trajectory IDs in that block
+    block_to_trajs = {b: traj_ids[block_ids == b] for b in unique_blocks}
+
+    # Pre-group by trajectory index for efficient resampling with replacement
+    traj_groups = {tid: grp for tid, grp in cohr_list.groupby(cohr_list.index)}
+
+    freqs = np.sort(cohr_list['freq'].unique())
+    boot_cohr_u = np.empty((n_resamples, len(freqs)))
+    boot_cohr_v = np.empty((n_resamples, len(freqs)))
+
+    for s in range(n_resamples):
+        # Resample blocks with replacement
+        sampled_blocks = np.random.choice(unique_blocks, size=n_blocks, replace=True)
+        # Collect all trajectory data from sampled blocks (duplicates included)
+        sampled_traj_ids = np.concatenate([block_to_trajs[b] for b in sampled_blocks])
+        sample = pd.concat([traj_groups[tid] for tid in sampled_traj_ids])
+
+        cohr = calc_coherence_mean(sample)
+        boot_cohr_u[s] = cohr['cohr_u'].reindex(freqs).to_numpy()
+        boot_cohr_v[s] = cohr['cohr_v'].reindex(freqs).to_numpy()
+
+    result = pd.DataFrame({
+        'cohr_u':     boot_cohr_u.mean(axis=0),
+        'cohr_u_975': np.quantile(boot_cohr_u, 0.975, axis=0),
+        'cohr_u_025': np.quantile(boot_cohr_u, 0.025, axis=0),
+        'cohr_v':     boot_cohr_v.mean(axis=0),
+        'cohr_v_975': np.quantile(boot_cohr_v, 0.975, axis=0),
+        'cohr_v_025': np.quantile(boot_cohr_v, 0.025, axis=0),
+    }, index=freqs)
+    result.index.name = 'freq'
+    return result
+

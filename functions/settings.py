@@ -42,7 +42,7 @@ if not (ROOT_DIR / __figures).is_dir():
 
 FIGURES_DIR = ROOT_DIR / __figures
 
-__paper = 'Paper_test'
+__paper = 'Paper'
 if not (FIGURES_DIR / __paper).is_dir(): # make DIR to put Paper figures into 
     (FIGURES_DIR/ __paper).mkdir()
     print(f'Made DIR {FIGURES_DIR / __paper}')

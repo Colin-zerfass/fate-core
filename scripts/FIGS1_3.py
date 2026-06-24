@@ -105,7 +105,7 @@ def FIG1():
     ax.annotate( "Palmyra", xy=(pal_lon, pal_lat),xytext=(18, 18),textcoords="offset points",
                 arrowprops=dict(arrowstyle="->", lw=1, color="black"),fontsize=10,zorder=8)
     dataNWR = gpd.read_file(settings.DATA_DIR / "Palmyra_Shapefiles",  layer = 'PAL_KING_NWR_12nm')
-    ax = plot.plot_NWPs(ax, dataNWR)
+    ax = plot.plot_NWPs(ax, dataNWR, Palmyra= True, Kingman= False)
     # ax.legend(loc='upper center', bbox_to_anchor=(3.2/7, 0.02),
     #           fancybox=True, shadow=True, ncol=3)
     FIG1filename = settings.FIGURES_PAPER_DIR / "FIG1.pdf"
@@ -382,7 +382,8 @@ def FIG3():
     fig.savefig(FIG3_name)
     print(f'FIG3 saved to: {FIG3_name}')
 
-def Fig_appendex(): 
+def FIG_appendex(): 
+    print('Starting Appendex FIG')
     drifters = gpd.read_parquet(settings.DRIFTER_DATA)
     longlist = funcs.generate_longlist(drifters)
     maxtime = longlist.Time.max()
@@ -411,12 +412,49 @@ def Fig_appendex():
     ax1.get_legend().remove()
     ax1.set_title(f'Drifters within dFAD Geofenced Area')
 
-    FIG_appendex_name = settings.FIGURES_PAPER_DIR/'Appendex1.png'
+    FIG_appendex_name = settings.FIGURES_PAPER_DIR/'Appendex1.pdf'
     fig.savefig(FIG_appendex_name)
     print(f'FIG Appendex 1 saved to : {FIG_appendex_name}')
 
+def FIG_coher():
+    import functions.Autocorrelation as ac 
+    
+    dFADs = gpd.read_parquet(settings.dFAD_DATA)
+    cohr_list = ac.calc_coherence(dFADs, 7)
+    n_resamples = 1000
+    blocksize = 100
+    print('starting coherence bootstrapping')
+    cohr = ac.block_bootstrap_cohr(cohr_list, n_resamples, blocksize)
+    fig, ax = plt.subplots()
+    cohr = cohr.iloc[1:]
+    ax.plot(cohr.index*3600*24, cohr.cohr_u, label ='Zonal')
+    ax.fill_between(cohr.index*3600*24, cohr.cohr_u_025, cohr.cohr_u_975, alpha=0.25, linewidth=0)
+    ax.plot(cohr.index*3600*24, cohr.cohr_v, label ='Meridional')
+    ax.fill_between(cohr.index*3600*24, cohr.cohr_v_025, cohr.cohr_v_975, alpha=0.25, linewidth=0)
+    ax.set(xlabel = r'Frequency [$Day^{-1}$]', ylabel = 'Coherence', title= 'Coherence Between dFAD and Modeled Velocities')
+    ax.legend()
+    
+    FIG_COHER_NAME  = settings.FIGURES_PAPER_DIR / 'FIG_coher.pdf'
+    fig.savefig(FIG_COHER_NAME)
+    print(f'FIG Appendex 1 saved to : {FIG_COHER_NAME}')
+
 if __name__ == '__main__':
-    # FIG1()
-    # FIG2()
-    FIG3()
-    # Fig_appendex()
+    import argparse
+
+    all_targets = ['FIG1', 'FIG2', 'FIG3', 'FIG_appendex', 'FIG_coher']
+
+    func_maps = { 'FIG1' : FIG1,
+                 'FIG2': FIG2, 
+                 'FIG3' : FIG3, 
+                 'FIG_appendex': FIG_appendex, 
+                 'FIG_coher': FIG_coher}
+    parser = argparse.ArgumentParser(description='Generate figures and tables for the dFAD forecasting paper.')
+    parser.add_argument('targets', nargs='*',choices=all_targets, 
+                        metavar='TARGET',
+                        help=f'Figures/tables to produce. Choices: {all_targets}. Defaults to all if omitted.')
+    
+    args = parser.parse_args()
+    targets  = args.targets if args.targets else all_targets
+    for target in targets: 
+        func_maps[target]()
+

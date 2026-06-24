@@ -39,16 +39,15 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from matplotlib.ticker import PercentFormatter
 
-
-if False: # FIG 4
-
+# FIG 4
+def FIG4():
     data= {
         'No Forecast':     ['No_forecast', 'forestgreen'],
-        # 'Climatology':      ['climatological2024', 'dodgerblue'],
+        'Climatology':      ['climatological2024', 'dodgerblue'],
         'Persistence':      ['persistence', 'blueviolet'],
         # 'All Methods':      ['Final/' + 'Initial_angle_v1_2026', 'k'],
         'GLORYs':             ['CMEMS_2026', 'orange'],
-        'GLORYs+bias' :       ['Final/cmems_bias_meanremoved_2026', 'red'],
+        'GLORYs+bias' :       ['cmems_bias_meanremoved_2026', 'red'],
         'GLORYs+bias+Persistence' : ['cmems_bias_pers_meanremoved_2026', 'black'],
         # 'GLORYs+bias+wind' :       ['cmems_bias_wind_meanremoved_2026', 'green'],
         # 'GLORYs+wind_meanstillon':        ['Final/' + 'cmems_wind_2026', 'olive'], 
@@ -185,7 +184,7 @@ if False: # FIG 4
             ax1.plot(bins[:]/24, ltes[i][:], lw = 2,  color = colors[i], alpha = alpha, ls = ls)
 
         if skill_score == True: 
-            ax2.plot(sss_df.index / 24, sss_df.iloc[:, i], color=colors[i], lw=2)
+            ax2.plot(sss_df.index / 24, sss_df.iloc[:, i], color=colors[i], lw=2, ls = ls, alpha =  alpha)
 
     #limits
     ax0.set_xticks(np.linspace(0,52,14))
@@ -222,8 +221,9 @@ if False: # FIG 4
     fig.savefig( settings.FIGURES_PAPER_DIR /  "FIG4.pdf")
     print(f'Figure 4 saved to: {settings.FIGURES_PAPER_DIR / 'FIG4.pdf'} ')
 
-if True: # table1 
-    from Wind_bias_correction import Calc_Z, calc_R_anything 
+def table1(): # table1 
+    from functions.corrections import Calc_Z, calc_R_anything, Regression, regression_u
+    ds = gpd.read_parquet(settings.dFAD_DATA) 
     # table of wind corrilations at depths 1,5,15,30 
     # and forecast errors at 24, 7 days
 
@@ -233,62 +233,117 @@ if True: # table1
         '5m' :       'cmems_2026_5m', 
         '15m' :      'cmems_2026', 
         '30m' :      'cmems_2026_30m', 
+        '55m' :      'cmems_2026_55m', 
+        '110m' :     'cmems_2026_110m', 
+        'Stokes':    'cmems_2026_stokes',   
+        'Wind' :     False,
         '1m_bias' :  'cmems_2026_1m_bias_meanremoved', 
         '5m_bias' :  'cmems_2026_5m_bias_meanremoved', 
         '15m_bias' : 'cmems_bias_meanremoved_2026', 
-        '30m_bias' : 'cmems_2026_30m_bias_meanremoved', 
+        '30m_bias' : 'cmems_2026_30m_bias_meanremoved',
+        '55m_bias' : 'cmems_2026_55m_bias_meanremoved',
+        '110m_bias' :'cmems_2026_110m_bias_meanremoved',
+        'Stokes_bias':'cmems_2026_stokes_bias_meanremoved', 
+        'Wind_bias': 'cmems_bias_wind_meanremoved_2026', 
     } 
     windll = funcs.generate_longlist(ds, extra_columns = ['mapped_u', 'mapped_v', 
                                                             'mapped_u_winds', 'mapped_v_winds',
                                                             'mapped_u_1', 'mapped_v_1',
                                                             'mapped_u_5', 'mapped_v_5',
-                                                            'mapped_u_30', 'mapped_v_30'])
+                                                            'mapped_u_30', 'mapped_v_30',
+                                                            'mapped_u_55', 'mapped_v_55',
+                                                            'mapped_u_110', 'mapped_v_110', 
+                                                            'mapped_u_stokes', 'mapped_v_stokes'])
     windll['Time']   = pd.to_datetime(windll.Time)
     windll['U']      = windll.x_speed       + 1j*windll.y_speed
-    windll['W']      = windll.mapped_u_winds + 1j*windll.mapped_v_winds
+    windll['Uo_W']      = windll.mapped_u_winds + 1j*windll.mapped_v_winds
     windll['Uo_1m']   = windll.mapped_u_1     + 1j*windll.mapped_v_1
     windll['Uo_5m']   = windll.mapped_u_5     + 1j*windll.mapped_v_5
     windll['Uo_15m']     = windll.mapped_u       + 1j*windll.mapped_v
     windll['Uo_30m']  = windll.mapped_u_30    + 1j*windll.mapped_v_30
+    windll['Uo_55m']  = windll.mapped_u_55    + 1j*windll.mapped_v_55
+    windll['Uo_110m']  = windll.mapped_u_110    + 1j*windll.mapped_v_110
+    windll['Uo_stokes'] = windll.mapped_u_stokes + 1j*windll.mapped_v_stokes
+
 
     ## make table to fill 
-    idxs = ['1m' , '5m' , '15m', '30m']
-    table = pd.DataFrame(columns= [ '|R|', '|Z|', 'phase (Z)', 
-                                   'Error 1 Day' , 'Bias Error 1 Day', 'Error 7 Day' , 'Bias Error 7 Day'],
-                         index= idxs)
-    table.index.name = 'Depth (m)'
-    for i in idxs: ## calcs corrilation 
-        R = calc_R_anything(windll.U, windll['Uo_' + i])
-        Z = Calc_Z( windll['Uo_' + i], windll.U)
-        table.at[i, '|R|'] = np.abs(R)
-        table.at[i, '|Z|'] = np.abs(Z)
-        table.at[i, 'phase (Z)'] = np.angle(Z,deg  = True)
+    Longlist_inx =      ['1m' , '5m' , '15m', '30m', '55m', '110m', 'stokes', 'W']
+    depths =            ['1m' , '5m' , '15m', '30m', '55m', '110m', '15m', '15m']
+    Model_names =       ['Currents 1m', 'Currents 5m','Currents 15m','Currents 30m','Currents 55m','Currents 110m', 'Currents 15m + Stokes', 'Currents 15m + Wind'] 
+
+    table = pd.DataFrame(columns= [ 'Eq',
+                                     r'$\lvert R \rvert$', 
+                                     r'$\lvert Z_1 \rvert$', 'phase $(Z_1)$',  
+                                     r'$\lvert Z_2 \rvert$', 'phase $(Z_2)$', 
+                                     # r'$\lvert Z_3 \rvert$', 'phase $(Z_3)$', 
+                                    #'Error 1 Day' , 'Bias Error 1 Day',
+                                    'Error 7 Day' , 'Bias Error 7 Day'],
+                         index= Model_names)
+    d0 = ''
+    # d1 = r'$U = Z_1 * U^{\prime})$'
+    eq1 = '4a'
+    eq2 = '4b'
+    Eqs = [ eq1, eq1, eq1, eq1, eq1, eq1, eq2, eq2, eq2]
+
+    table.index.name = 'Model (m)'
+    for n, i, in enumerate(Model_names): ## calcs corrilation 
+        if Eqs[n] == eq1: 
+            Z = Calc_Z( windll['Uo_' + Longlist_inx[n]], windll.U)
+            windll['Urecon'] = Z*windll['Uo_'+Longlist_inx[n]]
+            R = calc_R_anything(windll['U'], windll['Urecon'])
+            table.at[i, r'$\lvert Z_1 \rvert$'] = np.abs(Z)
+            table.at[i, 'phase $(Z_1)$'] = np.angle(Z,deg  = True)
+            table.at[i, 'phase $(Z_2)$'] = ''
+            table.at[i, r'$\lvert Z_2 \rvert$'] = ''
+        if Eqs[n] == eq2: 
+            coefficients = Regression(windll, U = "U", W =  'Uo_'+ Longlist_inx[n], Uo= 'Uo_15m')
+            print(coefficients)
+            windll_recon = regression_u(windll, coefficients, Uo = 'Uo_15m', W = 'Uo_'+Longlist_inx[n], suffix = "recon" )
+            R = calc_R_anything(windll_recon['U'], windll_recon['Ureg_recon'])
+            table.at[i, r'$\lvert Z_1 \rvert$'] = np.abs(coefficients[0])
+            table.at[i, 'phase $(Z_1)$'] = np.angle(coefficients[0],deg  = True)
+            table.at[i, r'$\lvert Z_2 \rvert$'] =  np.abs(coefficients[1])
+            table.at[i, 'phase $(Z_2)$'] = np.angle(coefficients[1], deg = True )
     
+        table.at[i, r'$\lvert R \rvert$'] = np.abs(R)
 
 
-    for i in idxs: 
-        forecasts = pd.read_csv(settings.FORECAST_DIR / (data[i]+ '.csv'))
-        errors1 = opf.RMSE_one_leadtime(forecasts, 1*24)
-        errors7 = opf.RMSE_one_leadtime(forecasts, 7*24 -2)
-        table.at[i, 'Error 1 Day'] = errors1
+    for n, i in enumerate(Model_names): 
+        table.at[i, 'Eq'] = Eqs[n]
+        file = list(data.values())[n]  
+        if file:
+            forecasts = pd.read_csv(settings.FORECAST_DIR / (file + '.csv'))
+            # errors1 = opf.RMSE_one_leadtime(forecasts, 1*24)
+            # table.at[i, 'Error 1 Day'] = errors1
+            errors7 = opf.RMSE_one_leadtime(forecasts, 7*24 -2)
+        else: 
+            errors7 = ''
         table.at[i, 'Error 7 Day'] = errors7
 
-        forecasts_bias = pd.read_csv(settings.FORECAST_DIR / (data[(i + '_bias' )] + '.csv'))
-        errors1 = opf.RMSE_one_leadtime(forecasts_bias, 1*24)
-        errors7 = opf.RMSE_one_leadtime(forecasts_bias, 7*24 -2)
-        table.at[i, 'Bias Error 1 Day'] = errors1
+        file = data[(list(data.keys())[n] + '_bias' )]
+        if file: 
+            forecasts_bias = pd.read_csv(settings.FORECAST_DIR / ( file + '.csv'))
+            errors1 = opf.RMSE_one_leadtime(forecasts_bias, 1*24)
+            errors7 = opf.RMSE_one_leadtime(forecasts_bias, 7*24 -2)
+            # table.at[i, 'Bias Error 1 Day'] = errors1
+        else: 
+            errors7 = ''
         table.at[i, 'Bias Error 7 Day'] = errors7
-        
-    output_name = settings.FIGURES_PAPER_DIR / 'Table1.xlsx'
-    table.to_excel(output_name, float_format='%.4f')
+
+    output_name = settings.FIGURES_PAPER_DIR / 'Table1.tex'
+    # table.to_csv(output_name, float_format='%.4f')
+    table.reset_index().to_latex(output_name,
+    index=False,
+    escape=False, 
+    float_format='%.4f'  # IMPORTANT
+)
     import dataframe_image as dfi
     # Export table image with floats rounded to 3 decimal places
     table = table.style.format(precision=3)
-    dfi.export(table, settings.FIGURES_PAPER_DIR / 'Table1.png')  
+    dfi.export(table, settings.FIGURES_PAPER_DIR / 'Table1.png', use_mathjax=True)  
     print(f'Table1 Saved to: {output_name}')
 
-
-if False: # FIG 5 
+def FIG5(): # FIG 5 
     """ 
     Makes three plots 
     1) showing errors as a function of speed_error and the latitude 
@@ -296,39 +351,69 @@ if False: # FIG 5
     """
     ##________________________________
     ## FIG5
-    fig = plt.figure(figsize=(5,5), dpi = 400)
-    gs = gridspec.GridSpec(3, 1)
-    ax = fig.add_subplot(gs[-1])
-    ax1 = fig.add_subplot(gs[:-1])
+    fig = plt.figure(figsize=(10,5), dpi = 400)
+    gs = gridspec.GridSpec(3, 2, width_ratios= [2,1])
+    ax = fig.add_subplot(gs[0,1]) # dFAD speed hist
+    ax2 = fig.add_subplot(gs[2,1]) # Initial speed diff hist
+    ax3 = fig.add_subplot(gs[1,1]) # model speed hist
+    ax1 = fig.add_subplot(gs[:,0])
     cmap = plt.cm.inferno
     ofset = 6## ofsets in 4 hour incruments  # this is the start time if ofset = 6, first time plotted with 24hr. 
     timerange = 18
     variable = "initial_speed_dif_mag"
     for i in range(timerange):
+        if i % 2 == 1:
+            continue
         speedbins, binned_errors = opf.Projection_binning(merged,variable, i*2+ofset)
         ax1.scatter(speedbins[binned_errors.index.codes], binned_errors, label=f"{round((i*2+ofset)*4/24,1)}-{round((i*2+ofset+1)*4/24, 1)} days", color=cmap(i/timerange))
-
-    nbins = 20
-    counts, bin_edges = np.histogram(merged[variable].dropna(), bins=nbins)
-    ax.bar(bin_edges[:-1], counts / counts.sum() * 100, width=np.diff(bin_edges), align='edge', alpha=0.7)
-    ax.yaxis.set_major_formatter(PercentFormatter())
-    ax.set_ylabel("Frequency (%)")
-    ax.set_xlabel(variable)
-    ax.set_xlim(0,0.8)
-
-    ax1.set_ylabel("Error km")
-    ax1.set_xlabel(variable)
+    ax1.set_ylabel("Forecast Possition Error km")
+    ax1.set_xlabel(r'Initial speed error $ |\mathbf{u_{FAD}} - \mathbf{u_{GLORYS}}|$')
     ax1.set_xlim(0,0.8)
     ax1.set_ylim(0,150)
-    ax1.set_title(f"{variable} vs \n displacement errors \n ")
+    ax1.set_title(
+    "Initial speed error "
+    r"$|\mathbf{u}_{FAD} - \mathbf{u}_{GLORYS}|$"
+    "\nvs displacement errors\n")
     ax1.grid(alpha = 0.25)
-    ax1.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    ax1.legend()
+
+    ## plotting Innitial speed error Histogram
+    bins = np.linspace(0,1, 20)
+    counts, bin_edges = np.histogram(merged[variable].dropna(), bins=bins)
+    ax2.bar(bin_edges[:-1], counts / counts.sum() * 100, width=np.diff(bin_edges), align='edge', alpha=0.7)
+    ax2.yaxis.set_major_formatter(PercentFormatter())
+    # ax2.set_ylabel("Initial speed error $ |\mathbf{u_{FAD}} - \mathbf{u_{GLORYS}}|$")
+    ax2.set_xlabel(r'Initial speed error $ |\mathbf{u_{FAD}} - \mathbf{u_{GLORYS}}|$' '\n [$m s^{-1}$]')
+    ax2.set_xlim(0,1)
+
+    # ## plotting Initial_dFAD_speed
+    merged['speed_xy'] = (merged.x_speed**2 + merged.y_speed**2)**(1/2)
+    merged['inital_dFAD_speed'] = merged.groupby(["BuoyID", "starttime"],  observed=False)['speed_xy'].transform("first")
+    merged['model_speed'] = (merged.u_mapped**2 + merged.v_mapped**2)**(1/2)
+    merged['initial_model_speed']=  merged.groupby(["BuoyID", "starttime"],  observed=False)['model_speed'].transform("first")
+    print(merged.inital_dFAD_speed.min(), merged.inital_dFAD_speed.max())
+    nbins = 20
+    counts, bin_edges = np.histogram(merged['inital_dFAD_speed'].dropna(), bins=bins)
+    ax.bar(bin_edges[:-1], counts / counts.sum() * 100, width=np.diff(bin_edges), align='edge', alpha=0.7)
+    ax.yaxis.set_major_formatter(PercentFormatter())
+    # ax.set_ylabel("Initial speed error $ |\mathbf{u_{FAD}} - \mathbf{u_{GLORYS}}|$")
+    ax.set_xlabel('Initial dFAD Speeds [$m s^{-1}$]')
+    ax.set_xlim(0,1)
+
+    nbins = 20
+    counts, bin_edges = np.histogram(merged['initial_model_speed'].dropna(), bins=bins)
+    ax3.bar(bin_edges[:-1], counts / counts.sum() * 100, width=np.diff(bin_edges), align='edge', alpha=0.7)
+    ax3.yaxis.set_major_formatter(PercentFormatter())
+    # ax3.set_ylabel("Initial speed error $ |\mathbf{u_{FAD}} - \mathbf{u_{GLORYS}}|$")
+    ax3.set_xlabel('GLORYs Initial Speeds [$m s^{-1}$]')
+    ax3.set_xlim(0,1)
+
     fig.tight_layout()
-    output_name  = plot_outputpath / 'FIG5.png'
+    output_name  = plot_outputpath / 'FIG5.pdf'
     fig.savefig(output_name)
     print(f'Figure5 Saved to: {output_name}')
 
-if False: #produces figure 6
+def FIG6(): #produces figure 6
     # Data setup for figures 6+ (binned error analysis)
     outputs = xr.load_dataset(output_data)
 
@@ -408,7 +493,7 @@ if False: #produces figure 6
     R_s = 1 - np.sum((centers_stacked.error_km - centers_stacked.predicted_errors)**2)/np.sum((centers_stacked.error_km - np.mean(centers_stacked.error_km))**2)
     print(f'Corrilation between regression qunatile and observed quantile : {R_s:.2f}')
 
-if False:  ## produces figure 7
+def FIG7():  ## produces figure 7
     import functions.draw_forecast_cones as cones
     fc0 = pd.read_csv(settings.FORECAST_DIR / 'cmems_bias_pers_meanremoved_2026.csv')
     dFADs = gpd.read_parquet(settings.dFAD_DATA)
@@ -426,7 +511,7 @@ if False:  ## produces figure 7
     fig.savefig(output_name)
     print(f'Figure7: saved to: {output_name}')
 
-if False: # produces figure 8
+def FIG8(): # produces figure 8
     #_________________________________
     ## Figure 6: yearly variations 
     # cmems = xr.open_dataset(r'Data\cmems_monthly.nc')
@@ -494,6 +579,14 @@ if False: # produces figure 8
     profiles2024 = calc_lat_average(longlist2024)
     profiles2025 = calc_lat_average(longlist2025)
 
+    def calc_var(group):
+        return group.x_speed.var() + group.y_speed.var()
+    longlist['day'] = longlist.Time.dt.date
+    varts = longlist.groupby('day', observed = False).apply(calc_var, include_groups=False).reset_index(name = 'var')
+    varts = varts.rename(columns = {'day': 'startday'})
+    varts['var30day'] = varts['var'].rolling(30,10, center = True).mean()
+    varts['var90day'] = varts['var'].rolling(90,10, center = True).mean()
+
     fig= plt.figure(figsize=(10,5), dpi=500)
     gs = GridSpec(2,4)
     ax0 = fig.add_subplot( gs[1,:])
@@ -502,13 +595,6 @@ if False: # produces figure 8
     ax24 = fig.add_subplot(gs[0,2])
     ax25 = fig.add_subplot(gs[0,3])
 
-    def calc_var(group):
-        return group.x_speed.var() + group.y_speed.var()
-    longlist['day'] = longlist.Time.dt.date
-    varts = longlist.groupby('day', observed = False).apply(calc_var, include_groups=False).reset_index(name = 'var')
-    varts = varts.rename(columns = {'day': 'startday'})
-    varts['var30day'] = varts['var'].rolling(30,10, center = True).mean()
-    varts['var90day'] = varts['var'].rolling(90,10, center = True).mean()
     ax0b = ax0.twinx()
     ax0.plot(varts.startday, varts.var30day , label = r'30 Day mean dFAD $\sigma^2$')
     ax0b.plot(fclt_daily.startday, fclt_daily.error30day, color = 'k', label = '30 day mean Forecast error')
@@ -591,10 +677,250 @@ if False: # produces figure 8
     x_center = (min(axi.get_position().x0 for axi in top_axes) + max(axi.get_position().x1 for axi in top_axes)) / 2
     y_text = max(min(axi.get_position().y0 for axi in top_axes) - 0.04, 0.01)
     fig.text(x_center, y_text, r'Zonal velocity (m/s)', ha='center', va='top')
-    output_name = plot_outputpath / 'FIG8.png'
+    output_name = plot_outputpath / 'FIG8.pdf'
     fig.savefig(output_name, bbox_inches='tight')
     print(f'Figure8 saved to: {output_name}')
 
     # calc corrilaton between Variance rolling mean and dFAD forecast errors
     fclt_varts = fclt_daily.merge(varts, how = 'left', on = 'startday')
     print(fclt_varts['error30day'].corr(fclt_varts['var30day'].shift(3)))
+
+def FIG8v2():
+    #_________________________________
+    ## Figure 6: yearly variations 
+    # cmems = xr.open_dataset(r'Data\cmems_monthly.nc')
+    cmems = xr.open_dataset(settings.DATA_DIR / 'cmems_monthly.nc')
+        ### recreating the figure above  to be in one time series with profiles for each year plotted below
+    from matplotlib.gridspec import GridSpec
+    # loading data
+    merged["startday"] = merged.groupby(['BuoyID', 'starttime'], observed= False)['starttime'].transform('first')
+    merged['startday'] = merged['startday'].dt.date
+    bins = np.linspace(0,8*24,2*24+1)
+    merged["lead_bins"] = pd.cut(merged["leadtime"], bins)
+    binlist = merged["lead_bins"].unique()
+    a  =binlist[7]
+    fclt =  merged.groupby('lead_bins', observed= False).get_group(a).copy() 
+    fclt_daily = fclt.groupby('startday', observed= False)['error_km'].mean()
+    fclt_daily = fclt_daily.to_frame(name ='error_km').reset_index()
+    fclt_daily['error30day'] = fclt_daily['error_km'].rolling(30,1,center = True).mean()
+
+    fclt_daily['starttime'] = pd.to_datetime(fclt_daily.startday)
+    fclt_daily['month'] = fclt_daily.starttime.dt.month
+    fclt_daily['day'] = fclt_daily.starttime.dt.day
+
+
+    #Calc Poofiles
+
+    longlist['year'] = longlist.Time.dt.year
+    longlist['month'] = longlist.Time.dt.month
+    month_bins = np.array([1,4,7,10,13])
+    longlist['season'] = pd.cut(longlist['month'], month_bins, right = False) # makes it [a,b) months 1-3, 4-6,7-9, 10-12
+    lat_bins = np.arange(4.5,8.01, 0.50)
+    longlist['lat_bin'] = pd.cut(longlist.lats, lat_bins, right = False)
+
+
+
+    ##calc Cross over point of SEC/NECC (ZERO crossing)
+    uo_profile = cmems.sel(depth=15.81007, method='nearest').mean(dim='longitude').uo
+    lats = uo_profile.latitude.values
+    times = pd.to_datetime(uo_profile.time.values)
+
+    zero_crossings = []
+    for t_idx in range(len(times)):
+        v = uo_profile.isel(time=t_idx).values
+        # find neg→pos transitions (westward→eastward going northward)
+        idx = np.where(np.diff(np.sign(v)) > 0)[0]
+        if len(idx) > 0:
+            i = idx[0]  # southernmost crossing
+            # linear interpolation for sub-grid precision
+            lat_zero = lats[i] - v[i] * (lats[i + 1] - lats[i]) / (v[i + 1] - v[i])
+        else:
+            lat_zero = np.nan
+        zero_crossings.append(lat_zero)
+    zero_crossing_ts = pd.Series(zero_crossings, index=times, name='zero_crossing_lat')
+    zero_crossing_interp = zero_crossing_ts.to_frame().reset_index(names = 'startday')
+
+    def calc_var(group):
+        return group.x_speed.var() + group.y_speed.var()
+    longlist['day'] = longlist.Time.dt.date
+    varts = longlist.groupby('day', observed = False).apply(calc_var, include_groups=False).reset_index(name = 'var')
+    varts = varts.rename(columns = {'day': 'startday'})
+    varts['var30day'] = varts['var'].rolling(30,10, center = True).mean()
+    varts['var90day'] = varts['var'].rolling(90,10, center = True).mean()
+
+
+    fig= plt.figure(figsize=(10,5), dpi=500)
+    gs = GridSpec(2,4)
+    ax22 = fig.add_subplot(gs[1,:])
+    ax0 = fig.add_subplot( gs[0,:])
+
+
+
+    ax0b = ax0.twinx()
+    ax0.plot(varts.startday, varts.var30day , label = r'30 Day mean dFAD $\sigma^2$')
+    ax0b.plot(fclt_daily.startday, fclt_daily.error30day, color = 'k', label = '30 day mean Forecast error')
+    ax0.set(ylabel = r'$\sigma ^2$',xlim = [pd.Timestamp('2022-01-01'), pd.Timestamp('2026-01-01')])
+    #ax0.tick_params(labelrotation = 45)
+    for d in pd.to_datetime(['2022-01-01', '2023-01-01', '2024-01-01', '2025-01-01']):
+        ax0.axvline(d, color='k', lw=0.8)
+    ax0b.set_ylabel('72hr Forecast error (km)')
+    #x0.set_xticks(['2024'], )
+
+    ax22.plot(zero_crossing_interp.startday, zero_crossing_interp.zero_crossing_lat , label = f'Zero mean Flow', color = 'b', alpha = 0.7)
+    ax22.set_xlim(pd.Timestamp('2022-01-01'), pd.Timestamp('2026-01-01'))
+    ax22.set_ylabel('Latitude')
+    ax22.set_title('Boundry between NECC and SEC - No Monthly mean flow')
+    ax22.hlines(4.5,pd.Timestamp('2022-01-01'), pd.Timestamp('2026-01-01'),color = 'k', alpha = 0.4, ls = ':')
+    ax22.text(pd.Timestamp('2023-06-01'), 4.5, 'Geofenced Boundary', ha = 'center', fontsize = 10, alpha = 0.6)  
+    ax22.text(pd.Timestamp('2022-5-15'), 3.6, 'NECC', rotation = 45)
+    ax22.text(pd.Timestamp('2022-07-01'), 3.5, 'SEC', rotation = 45)
+    ax22.vlines([pd.Timestamp('2023-01-01'), pd.Timestamp('2024-01-01'), pd.Timestamp('2025-01-01')], ymin = 1, ymax = 7, color='k', lw=0.8)
+    ax22.set_ylim(2.5,6.5)
+
+    # Adjust the GridSpec to remove horizontal spacing between lower plots
+
+    # shared x-label for the top-row profile panels
+    ax0.set_title(r'Yearly Variations in Currents and Errors')
+    # Reserve bottom space for legend below ax0
+    # fig.tight_layout(rect=[0, 0.1, 1, 1])
+    ax0_y0 = ax22.get_position().y0  # bottom of ax0 in figure coords after tight_layout
+    fig.legend(loc='upper center', bbox_to_anchor=(0.5, ax0_y0 - 0.1),
+            bbox_transform=fig.transFigure, fancybox=True, shadow=True, ncol=3)
+    fig.tight_layout()
+    output_name = plot_outputpath / 'FIG8v2.png'
+    fig.savefig(output_name, bbox_inches='tight')
+    print(f'Figure8 saved to: {output_name}')
+
+    # calc corrilaton between Variance rolling mean and dFAD forecast errors
+    fclt_varts = fclt_daily.merge(varts, how = 'left', on = 'startday')
+    print(fclt_varts['error30day'].corr(fclt_varts['var30day'].shift(3)))
+
+def FIG8v3():
+     #_________________________________
+    ## Figure 6: yearly variations 
+    # cmems = xr.open_dataset(r'Data\cmems_monthly.nc')
+    cmems = xr.open_dataset(settings.DATA_DIR / 'cmems_monthly.nc')
+    # clim = xr.load_dataset(settings.DATA_DIR / 'drifter_monthlymeans_9c26_64bd_a00e_U1780506785300.nc')
+    # clim = clim.sel(latitude = 5, longitude = -163.6, method= 'Nearest')
+    # breakpoint()
+    # clim = clim.to_pandas()
+    # breakpoint()
+        ### recreating the figure above  to be in one time series with profiles for each year plotted below
+    from matplotlib.gridspec import GridSpec
+    # loading data
+    merged["startday"] = merged.groupby(['BuoyID', 'starttime'], observed= False)['starttime'].transform('first')
+    merged['startday'] = merged['startday'].dt.date
+    bins = np.linspace(0,8*24,2*24+1)
+    merged["lead_bins"] = pd.cut(merged["leadtime"], bins)
+    binlist = merged["lead_bins"].unique()
+    a  =binlist[7]
+    fclt =  merged.groupby('lead_bins', observed= False).get_group(a).copy() 
+    fclt_daily = fclt.groupby('startday', observed= False)['error_km'].mean()
+    fclt_daily = fclt_daily.to_frame(name ='error_km').reset_index()
+    fclt_daily['error30day'] = fclt_daily['error_km'].rolling(30,1,center = True).mean()
+
+    fclt_daily['starttime'] = pd.to_datetime(fclt_daily.startday)
+    fclt_daily['month'] = fclt_daily.starttime.dt.month
+    fclt_daily['day'] = fclt_daily.starttime.dt.day
+
+    #Calc Poofiles
+    longlist['year'] = longlist.Time.dt.year
+    longlist['month'] = longlist.Time.dt.month
+    month_bins = np.array([1,4,7,10,13])
+    longlist['season'] = pd.cut(longlist['month'], month_bins, right = False) # makes it [a,b) months 1-3, 4-6,7-9, 10-12
+    lat_bins = np.arange(4.5,8.01, 0.50)
+    longlist['lat_bin'] = pd.cut(longlist.lats, lat_bins, right = False)
+
+
+    ##calc Cross over point of SEC/NECC (ZERO crossing)
+    uo_profile = cmems.sel(depth=15.81007, method='nearest').mean(dim='longitude').uo
+    
+
+    def calc_var(group):
+        return group.x_speed.var() + group.y_speed.var()
+    longlist['day'] = longlist.Time.dt.date
+    varts = longlist.groupby('day', observed = False).apply(calc_var, include_groups=False).reset_index(name = 'var')
+    varts = varts.rename(columns = {'day': 'startday'})
+    varts['var30day'] = varts['var'].rolling(30,10, center = True).mean()
+    varts['var90day'] = varts['var'].rolling(90,10, center = True).mean()
+
+
+    fig= plt.figure(figsize=(10,5), dpi=500)
+    gs = GridSpec(2,4, height_ratios= [1, 1.2])
+    ax22 = fig.add_subplot(gs[1,:])
+    ax0 = fig.add_subplot( gs[0,:])
+
+    ax0b = ax0.twinx()
+    ax0.plot(varts.startday, varts.var30day , label = r'30 Day mean dFAD $\sigma^2$')
+    ax0b.plot(fclt_daily.startday, fclt_daily.error30day, color = 'k', label = '30 day mean Forecast error')
+    ax0.set(ylabel = r'$\sigma ^2$',xlim = [pd.Timestamp('2022-01-01'), pd.Timestamp('2026-01-01')])
+    #ax0.tick_params(labelrotation = 45)
+    for d in pd.to_datetime(['2022-01-01', '2023-01-01', '2024-01-01', '2025-01-01']):
+        ax0.axvline(d, color='k', lw=0.8)
+    ax0b.set_ylabel('72hr Forecast error (km)')
+    ax22.hlines([4.5, 7.75] ,pd.Timestamp('2022-01-01'), pd.Timestamp('2026-01-01'),color = 'k', alpha = 0.4, ls = ':')
+    ax22.text(pd.Timestamp('2024-06-01'), 7.76 , 'Geofenced Boundary', ha = 'center', fontsize = 10, alpha = 0.6) 
+    ax0.legend(loc='lower left')
+    ax0b.legend(loc='lower right')
+    #x0.set_xticks(['2024'], )
+
+    vmax = float(np.nanpercentile(np.abs(uo_profile.values), 98))
+    pcm = ax22.pcolormesh(uo_profile.time.values, uo_profile.latitude.values,
+                          uo_profile.values.T,
+                          cmap='RdBu_r', vmin=-vmax, vmax=vmax, shading='auto')
+    ax22.contour(uo_profile.time.values, uo_profile.latitude.values, 
+             uo_profile.values.T, levels=[0], colors='black', linewidths=1.5, alpah = 0.8 )
+    fig.colorbar(pcm, ax=ax22, label='uo (m/s)', orientation='horizontal', shrink = 0.5)
+    ax22.set_ylabel('Latitude')
+    ax22.set_xlim(pd.Timestamp('2022-01-01'), pd.Timestamp('2026-01-01'))
+    ax22.set_ylim(3,10)
+    for d in pd.to_datetime(['2022-01-01', '2023-01-01', '2024-01-01', '2025-01-01']):
+        ax22.axvline(d, color='k', lw=0.8)
+    
+
+    # Adjust the GridSpec to remove horizontal spacing between lower plots
+
+    # shared x-label for the top-row profile panels
+    ax0.set_title(r'Yearly Variations in Currents and Errors')
+    # Reserve bottom space for legend below ax0
+    # fig.tight_layout(rect=[0, 0.1, 1, 1])
+    ax0_y0 = ax22.get_position().y0  # bottom of ax0 in figure coords after tight_layout
+    # fig.legend(loc='upper center', bbox_to_anchor=(0.5, ax0_y0 - 0.1),
+    #         bbox_transform=fig.transFigure, fancybox=True, shadow=True, ncol=3)
+    fig.tight_layout()
+    output_name = plot_outputpath / 'FIG8v3.pdf'
+    fig.savefig(output_name, bbox_inches='tight')
+    print(f'Figure8 saved to: {output_name}')
+
+    # calc corrilaton between Variance rolling mean and dFAD forecast errors
+    fclt_varts = fclt_daily.merge(varts, how = 'left', on = 'startday')
+    print(fclt_varts['error30day'].corr(fclt_varts['var30day'].shift(3)))
+    
+if __name__ =='__main__': 
+    import argparse
+
+    all_targets = ['FIG4', 'table1', 'FIG5', 'FIG6', 'FIG7', 'FIG8', 'FIG8v2', 'FIG8v3']
+    func_map = {
+        'FIG4':   FIG4,
+        'table1': table1,
+        'FIG5':   FIG5,
+        'FIG6':   FIG6,
+        'FIG7':   FIG7,
+        'FIG8':   FIG8,
+        'FIG8v2': FIG8v2,
+        'FIG8v3': FIG8v3
+    }
+
+    parser = argparse.ArgumentParser(description='Generate figures and tables for the dFAD forecasting paper.')
+    parser.add_argument(
+        'targets',
+        nargs='*',
+        choices=all_targets,
+        metavar='TARGET',
+        help=f'Figures/tables to produce. Choices: {all_targets}. Defaults to all if omitted.',
+    )
+    args = parser.parse_args()
+
+    targets = args.targets if args.targets else all_targets
+    for target in targets:
+        func_map[target]()
