@@ -1,14 +1,14 @@
 # Data
-output_name = 'cmems_2026'
+output_name = 'cmems_2026_drifters_bias_meanremoved_2026'
 
 
 parallel_cores = 128
 
 #Run specifics
-startdate = '2022-01-01'
+startdate = '2024-08-01'
 enddate = '2025-12-31'
 
-particles = 'dFADs'
+particles = 'drifters'
 dynamical = true
 currents_file = 'cmems'  #options [cmems, OSCAR]
 forecast_length = 8 #length of Forecasts in Days. ##only changes runtime of model. 
@@ -16,7 +16,7 @@ persistence = false
 persistence_window = 2
 Tau = 0.83 # Days 
 depth = 15.8101 # Options are: [ 0.494   1.5414  2.6457  3.8195  5.0782  6.4406  7.9296  9.573  11.405 13.4671 15.8101 18.4956 21.5988 25.2114 29.4447, 55.7643, 109.7293]
-bias = false
+bias = true
 wind = false
 stokes_drift = false
 

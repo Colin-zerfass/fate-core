@@ -93,7 +93,13 @@ def Run_model_dynamical(startdate:pd.Timestamp, enddate:pd.Timestamp, monthindex
 
 
     ## loads the dFAD data
-    ds = gpd.read_parquet(settings.dFAD_DATA)
+    if config['particles'] == 'dFADs': 
+        ds = gpd.read_parquet(settings.dFAD_DATA)
+    elif config['particles'] == 'drifters':
+        ds = gpd.read_parquet(settings.DRIFTER_GEOFENCED_DATA)
+    else: 
+        print(f'Particles not either dFADs or drifters : chosen {config["particles"]}')
+        return
     loader = Dataloader(ds)
     loader.Firstposstions_multidays(
         startdate=startdate,

@@ -2,6 +2,7 @@ output_name = "Test_output"
 parallel_cores = 1
 startdate = "2025-01-9"
 enddate = "2025-01-10"
+particles = "drifters"
 dynamical = true
 currents_file = "cmems"  #options [cmems, OSCAR]
 forecast_length = 8  #length of Forecasts in Days. ##only changes runtime of model.

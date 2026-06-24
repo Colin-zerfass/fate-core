@@ -8,6 +8,7 @@ parallel_cores = 128
 startdate = '2022-01-01'
 enddate = '2025-12-31'
 
+particles = 'dFADs'
 dynamical = true
 currents_file = 'cmems'  #options [cmems, OSCAR]
 forecast_length = 8 #length of Forecasts in Days. ##only changes runtime of model. 
