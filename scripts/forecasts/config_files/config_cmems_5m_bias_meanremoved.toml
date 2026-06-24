@@ -1,31 +1,46 @@
-# Data
-output_name = 'cmems_2026_5m_bias_meanremoved'
-
-
+output_name = "cmems_2026_5m_bias_meanremovedv2"
 parallel_cores = 128
-
-#Run specifics
-startdate = '2022-01-01'
-enddate = '2025-12-31'
-
+startdate = "2022-01-01"
+enddate = "2025-12-31"
 dynamical = true
-currents_file = 'cmems'  #options [cmems, OSCAR]
-forecast_length = 8 #length of Forecasts in Days. ##only changes runtime of model. 
+currents_file = "cmems"  #options [cmems, OSCAR]
+forecast_length = 8  #length of Forecasts in Days. ##only changes runtime of model.
 persistence = false
 persistence_window = 2
-Tau = 0.83 # Days 
-depth = 5.0782 # Options are: [ 0.494   1.5414  2.6457  3.8195  5.0782  6.4406  7.9296  9.573  11.405 13.4671 15.8101 18.4956 21.5988 25.2114 29.4447, 55.7643, 109.7293]
+Tau = 0.83  # Days
+depth = 5.0782  # Options are: [ 0.494   1.5414  2.6457  3.8195  5.0782  6.4406  7.9296  9.573  11.405 13.4671 15.8101 18.4956 21.5988 25.2114 29.4447, 55.7643, 109.7293]
 bias = true
 wind = false
 stokes_drift = false
 
-# bias corrections
 [GLORYs_correction]
-currents = [0.7766, 0.0820]
-wind = [0, 0] 
-Uo_clim_mean = [0.2112, 0.0720] #mean(u)
-U_dfad_mean = [0.163768, 0.049398]
+currents = [
+    0.7765960714010941,
+    0.08204293217317057,
+]
+wind = [
+    0.0,
+    0.0,
+]
+Uo_clim_mean = [
+    0.16402496710413644,
+    0.06704084089162302,
+]
+U_dfad_mean = [
+    0.16376807816904695,
+    0.04939781745321194,
+]
+W_clim_mean = [
+    -6.195747398193476,
+    -0.5008575899626073,
+]
 
 [OSCAR_correction]
-currents = [0.94156209 , 7.33441934e-05]
-wind = [0.00791801, 4.05632385e-03]
+currents = [
+    0.94156209,
+    7.33441934e-05,
+]
+wind = [
+    0.00791801,
+    0.00405632385,
+]
